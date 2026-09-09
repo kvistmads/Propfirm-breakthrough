@@ -1,0 +1,201 @@
+exchange:
+  name: binance
+  sandbox: true
+
+trading:
+  dry_run: true
+  total_capital: 100
+  stake_amount: 5
+  max_open_trades: 30
+  leverage: 1
+  breakeven_trigger_pct: 0.5   # Flyt SL til entry når 50% af TP-afstand er nået
+  max_bars_held: 24            # Time-stop: 24 barer × 4h = 4 døgn
+
+symbols:
+  - BTC/USDT
+  - ETH/USDT
+  - SOL/USDT
+  - EUR/USD
+  - GBP/USD
+  - XAU/USD
+
+timeframes:
+  primary: "4h"
+  entry: "1h"
+
+strategies:
+  enabled:
+    - trend_momentum
+    - volatility_breakout
+  min_confidence: 0.45
+  params:
+    volatility_breakout:
+      squeeze_percentile: 25
+      min_volume_ratio: 1.2
+
+gates:
+  confluence:
+    enabled: false
+  risk:
+    enabled: true
+    max_position_pct: 5.0
+    max_daily_loss_pct: 3.0
+    blocking: true
+  regime:
+    enabled: true
+    blocking: true
+    min_trending_adx: 20
+    max_volatile_atr_pct: 4.0
+    volatile_min_confidence: 0.75
+
+# sl_pct/tp_pct er FALLBACK når ATR ikke er tilgængelig. Ellers:
+#   SL-afstand = atr_sl_multiplier × ATR(14),  TP-afstand = tp_rr_ratio × SL-afstand.
+risk_defaults:
+  crypto:   {sl_pct: 10.0, tp_pct: 20.0, atr_sl_multiplier: 2.0, tp_rr_ratio: 1.5}
+  forex:    {sl_pct: 1.5,  tp_pct: 3.0,  atr_sl_multiplier: 2.0, tp_rr_ratio: 1.5}
+  gold:     {sl_pct: 3.0,  tp_pct: 6.0,  atr_sl_multiplier: 2.0, tp_rr_ratio: 1.5}
+
+# ---------------------------------------------------------------------------
+# Backtest-omkostninger. EGEN sektion — rører ikke live-parametre og læses kun
+# af backtest/costs.py. Live-handelsadfærd er upåvirket af alt herunder.
+#
+# Enheder er valgt så de er EKSAKTE og selvjusterende: futures-omkostninger er
+# defineret i kontraktens egne enheder (ticks, USD pr. rundtur) og omregnes til
+# en brøkdel af prisen ved hver handel. Et fast basispunkt-tal ville låse en
+# antaget prisniveau fast — guld i 4.500 giver dobbelt så mange bp som guld i
+# 2.250 for præcis den samme tick.
+#
+# KILDER (slået op 2026-09-02, se research/output/cost_model.md for detaljer):
+#   crypto  — Binance spot VIP 0: 0,10% maker/taker pr. side
+#   gold    — COMEX GC: 100 troy oz, tick 0,10 USD = 10 USD/kontrakt
+#   forex   — CME 6E: 125.000 EUR, tick 0,00005 = 6,25 USD
+#             CME 6B:  62.500 GBP, tick 0,0001  = 6,25 USD
+#   index   — CME ES: multiplier 50, tick 0,25 = 12,50 USD  (ikke handlet i dag)
+#
+# ANTAGELSER (ikke børsdokumentation — markeret som skøn i rapporten):
+#   spread_ticks: 1,0    front-month CME handler typisk i ét tick
+#   slippage_*:          der findes ingen offentliggjort slippage-statistik;
+#                        et halvt tick i snit er et skøn, ikke et opslag
+# ---------------------------------------------------------------------------
+backtest:
+  costs:
+    # Seed for slippage-trækket. Samme seed + samme (strategi, symbol) giver
+    # altid samme tal, uanset om der køres ét symbol eller hele suiten.
+    slippage_seed: 20260902
+
+    crypto:
+      mode: proportional          # gebyrer skalerer med notional
+      spread_pct: 0.0001          # 1 bp — majors på Binance spot
+      slippage_mean_pct: 0.0002
+      slippage_std_pct: 0.0002
+      commission_pct: 0.002       # 0,10% taker × 2 sider = 0,20% rundtur
+
+    # Asset-class-defaults = 6B (den dyrere af de to FX-kontrakter i
+    # brøkdele af prisen). EUR/USD handler på 6E og overrides nedenfor —
+    # de to kontrakter har forskellig tick og notional, og ét fælles tal
+    # ville overvurdere EUR/USD's omkostning med ~70%.
+    forex:
+      mode: contract
+      tick_size: 0.0001           # 6B British Pound
+      contract_multiplier: 62500  # 6B: 62.500 GBP
+      spread_ticks: 1.0
+      slippage_mean_ticks: 0.5
+      slippage_std_ticks: 0.5
+      commission_usd_round_turn: 4.0
+
+    gold:
+      mode: contract
+      tick_size: 0.10             # COMEX GC
+      contract_multiplier: 100    # troy oz
+      spread_ticks: 1.0
+      slippage_mean_ticks: 0.5
+      slippage_std_ticks: 0.5
+      commission_usd_round_turn: 4.0
+
+    index:                        # ES — ingen symboler bruger den i dag
+      mode: contract
+      tick_size: 0.25
+      contract_multiplier: 50
+      spread_ticks: 1.0
+      slippage_mean_ticks: 0.5
+      slippage_std_ticks: 0.5
+      commission_usd_round_turn: 4.0
+
+    # Symbol-overrides oven på asset-class-defaults (kun de nøgler der afviger).
+    symbols:
+      EUR/USD:                    # CME 6E: 125.000 EUR, tick 0,00005 = 6,25 USD
+        tick_size: 0.00005
+        contract_multiplier: 125000
+
+      MNQ:                      # CME Micro E-mini Nasdaq-100: 2 USD/indekspoint, tick 0,25 = 0,50 USD
+        tick_size: 0.25
+        contract_multiplier: 2
+        spread_ticks: 1.5       # SKOEN, RTH - ikke maalt. Aabent spoergsmaal 6
+        commission_usd_round_turn: 1.22   # TopstepX verificeret 2026-09-09: 0,50 kurtage + 0,71 boers + 0,01 NFA
+
+notifications:
+  telegram:
+    enabled: true
+    daily_summary_time: "22:00"
+
+reflection:
+  enabled: true
+  min_trades_for_analysis: 200        # Under dette: observation-only, ingen auto-apply
+  anthropic_model: "claude-opus-4-8"  # Bruges til begge loops
+
+  nightly:
+    schedule: "0 2 * * *"             # 02:00 UTC
+    lookback_hours: 24                # Analyser trades/signals fra de seneste N timer
+                                      # (weekly-rapporten dækker den lange historik)
+    min_trades_per_strategy: 10       # Spring strategi over hvis for få trades
+
+  weekly:
+    schedule: "0 3 * * 0"             # Søndag 03:00 UTC
+    include_git_diff: true
+    include_profiling: true
+
+  research:                           # Phase 5 — Research Layer (Del A)
+    enabled: true                     # berig Loop A/B med curated viden + backtest-baseline
+    web_search: false                 # slå urllib web-søgning til (best-effort, netværksafhængig)
+
+  # Gaten på reflection-loopets EGNE PARAMETERFORSLAG (Observation.confidence =
+  # modellens tillid til sit forslag). Hed før confidence_gate, hvilket lød som
+  # handelssignalets confidence (strategies.min_confidence) — to forskellige ting.
+  proposal_gate:
+    auto_apply_threshold: 0.85        # >= dette: auto-applies (hvis n >= min_sample)
+    telegram_threshold: 0.65          # >= dette: send til Telegram til godkendelse
+    # Under 0.65: kun i rapport, ingen action
+    min_sample_for_auto: 30           # Minimum trades-grundlag for auto-apply
+    max_change_pct: 0.20              # Auto-apply må max ændre en parameter med 20%
+
+  ab_experiments:
+    min_trades_per_arm: 30            # Minimum trades i hvert arm før konklusion
+    significance_threshold: 0.10      # Minimum relativ forbedring for "b_wins"
+
+  news_intelligence:                  # Loop C — Phase 4.1
+    enabled: true
+    schedule: "0 */2 * * *"           # hver 2. time
+    horizon_hours: 24                 # evalueringshorisont for shadow signals
+    min_confidence: 0.55              # minimum for at gemme shadow signal
+    promotion_accuracy: 0.60          # accuracy-grænse for Telegram-alert
+    promotion_min_signals: 30         # minimum antal signals for at vurdere promotion
+    sources:
+      cryptopanic: false
+      fear_greed: true
+      alpaca: false                   # sæt true hvis ALPACA_API_KEY er i .env
+    # Confirmation-hook (Phase 5 feature — byg infrastrukturen, aktiver ikke endnu)
+    confirmation_hook:
+      enabled: false
+      confidence_boost: 0.05          # +5% confidence ved match
+      confidence_damp: 0.08           # -8% confidence ved konflikt
+
+  # Hårde grænser — disse parametre kan ALDRIG auto-applies uanset confidence
+  protected_parameters:
+    - stake_amount
+    - leverage
+    - max_open_trades
+    - sl_pct
+    - tp_pct
+    - total_capital
+    - atr_sl_multiplier
+    - tp_rr_ratio

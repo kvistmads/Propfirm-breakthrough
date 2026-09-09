@@ -1,0 +1,45 @@
+# Python 3.12 required (3.13+ ikke understøttet af cryptography/numba endnu)
+# Installér med binære wheels — cryptography bygger ellers fra kilde og fejler:
+#   pip install --only-binary=:all: -r requirements.txt
+ccxt>=4.3.0
+pandas>=2.0.0
+numpy>=1.24.0
+SQLAlchemy>=2.0.0
+aiosqlite>=0.19.0
+PyYAML>=6.0
+python-dotenv>=1.0.0
+aiohttp>=3.9.0
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+
+# Backtest-datakilder: Binance (ccxt, ovenfor) til crypto, yfinance til forex/gold.
+yfinance>=0.2.40
+
+# Phase 4 — Learning Loop (reflection/). Installér med --only-binary=:all: (chromadb
+# trækker onnxruntime/tokenizers der ellers bygger fra kilde):
+#   .venv/bin/pip install --only-binary=:all: chromadb anthropic "apscheduler>=3.10,<4.0"
+chromadb>=0.5.0          # embeddings-store for historiske observationer
+anthropic>=0.40.0        # LLM-analyse (læser ANTHROPIC_API_KEY fra .env)
+apscheduler>=3.10.0,<4.0 # cron-scheduling af nightly/weekly (v4 har breaking API-ændringer)
+
+# Phase 5 — skema-migrationer. Erstatter den manuelle _apply_additive_migrations:
+# nye kolonner på eksisterende tabeller håndteres nu af `alembic upgrade head`.
+alembic>=1.13,<2.0
+
+# pandas-ta er BEVIDST udeladt. På dette miljø (numpy 2.5 / pandas 3.0) kan den ikke køre:
+#   - pandas-ta>=0.3.14b resolver til 0.4.71b0, som kræver numba → numba tvinger numpy<2.4 (nedgradering).
+#   - Den ældre 0.3.14b0 gør `from numpy import NaN`, som blev fjernet i numpy 2.0 → importerer ikke.
+# Indikatorerne (EMA/MACD/RSI/ATR/Bollinger/volume) er derfor implementeret i ren pandas/numpy
+# i data/indicators.py — matematisk identiske og med samme kolonnenavne som pandas-ta.
+# pandas-ta>=0.3.14b
+
+# MetaTrader5 er Windows-only og har ingen wheel til macOS/Linux.
+# Installeres separat på Windows-terminalen; koden fejler gracefully hvis den mangler:
+#   pip install MetaTrader5
+# MetaTrader5>=5.0.45  ; sys_platform == "win32"
+
+# Parquet til orderbook-optageren (research/orderbook_recorder.py).
+# Arkivet vokser med ~0,6 GB/aar og skal laeses med pandas bagefter; JSON
+# ville vaere ubrugelig til begge dele. Formatet er valgt FOER foerste
+# snapshot, saa arkivet ikke bliver delt i to inkompatible halvdele.
+pyarrow>=15
