@@ -1,38 +1,63 @@
 # Propfirm-sporet
 
-**Status:** påbegyndt 2026-09-09. Opdateret samme dag efter første arbejdssession.
-Repoet står, apparatet er kopieret og testene er grønne. **Åbent spørgsmål 1 og 2 er
-besvaret.** Ingen konto åbnet, ingen strategi bygget.
+**Status:** 2026-09-10. Repoet står, apparatet er kopieret, testene er grønne
+(94 passed, 4 skipped), alt er committet og pushet. **Spørgsmål A1-A6 er besvaret.**
+Ingen konto åbnet, ingen strategi bygget, ingen prisdata i repoet.
 
-Søsterdokumenter: `STRATEGI_TSMOM.md`, `STRATEGI_DAYTRADING.md`.
+Søsterdokumenter: `claude/ANTAGELSER.md` (hvilke tal er verificeret og hvilke er gæt),
+`claude/PRD_FASE1_DATAGRUNDLAG.md` (næste fase), `STRATEGI_TSMOM.md`,
+`STRATEGI_DAYTRADING.md`.
+
+---
+
+## 0. Invarianter
+
+Regler der gør alle tabeller i dokumentet forkerte hvis de brydes. De står her og ikke i
+en fodnote, fordi de er stille fejl — man ser dem ikke i et resultat.
+
+> **RR-invarianten.** Alt i dette dokument regner med **2:1**. Ved 2:1 og omkostning
+> 0,0248 R er break-even 34,16%. Ved 1,5:1 er den ~40%. **Tal fra en 2:1-tabel må aldrig
+> læses sammen med tal fra en 1,5:1-tabel.** Ændres RR, skal hver eneste tabel regnes om
+> — ikke justeres.
+
+> **Kanal-invarianten.** En gebyrsats tæller først når den er verificeret for den kanal
+> botten faktisk bruger. Fanget to gange: MEXC (web mod API) og MNQ (Tradovate Free mod
+> TopstepX).
+
+> **Enheds-invarianten.** Enheden står i kolonnenavnet. `omk_R_netto`, ikke `omk`.
+
+> **Estimat-invarianten.** Et punktestimat sizes der ikke efter. Fordelinger rapporteres
+> som 10./50./90. percentil, og go/no-go vurderes på den ende hvor det gør ondt.
 
 ---
 
 ## 1. Hvad sporet er
 
-Et separat handelssystem der skal **bestå en propfirm-evaluering og derefter holde den
-funded konto i live**. Kapitalen er propfirmaets, ikke Mads'.
+Et handelssystem der skal igennem Topsteps tre trin og derefter tjene penge på
+propfirmaets kapital.
 
-To strategier, ikke én:
+**To strategier, tre konfigurationer.** Antallet af strategier følger antallet af
+*målfunktioner*, ikke antallet af konti:
 
-- **Eval-strategien** skal nå profitmålet inden for reglerne. Den må være aggressiv,
-  fordi konsekvensen af at fejle er et nyt evalueringsgebyr — ikke tab af egne penge.
-- **Konto-strategien** skal holde kontoen i live bagefter. Den må være defensiv,
-  fordi konsekvensen af at fejle er at hele arbejdet er væk.
+| spor | konti | målfunktion | tabsfunktion |
+|---|---|---|---|
+| **A — eval** | Combine | Nå +$3.000 før −$2.000 (trailende gulv) | Fejl koster et gebyr. Må være aggressiv |
+| **B — indtjening** | XFA, derefter LFA | Producér vindende dage à $150+ og tag payouts | Fejl koster kontoen. Skal være defensiv |
 
-De to har modsatrettede tabsfunktioner. Det er grunden til at de er to strategier og
-ikke én med et parameter skruet på.
+XFA og LFA deler målfunktion — vindende dage → payout. De adskiller sig kun på gulvet
+($2.000 trailende der låser ved $0, mod $1.000 fast) og på om markedet er rigtigt. **Det
+er en risikoparameter, ikke en strategi.** Derfor to strategier med tre
+risikokonfigurationer, ikke tre strategier.
 
-**Efter ruinmodellen (§5) ved vi at spændingen er mindre end frygtet:** de to
-strategiers optimale sizing ligger som naboer, ikke i hver sin ende.
+**A optimerer en strækning. B optimerer en gentagen daglig tærskel.** Det er den
+væsentlige forskel, og den har konsekvenser helt ned i valget af timeframe (§5).
 
 ### Afgrænsning
 
-- **Nyt repo.** Ikke en ny main i det eksisterende. Begrundelsen er Mads' egen:
-  "knald eller fald, en forkert fejl på det forkerte tidspunkt, konto død."
+- **Nyt repo.** Begrundelsen er Mads' egen: "knald eller fald, en forkert fejl på det
+  forkerte tidspunkt, konto død."
 - **Apparatet kopieres, deles ikke.** Gennemført — se §6.
-- **De 5-10K er ikke en del af dette spor.** De hører til det eksisterende
-  krypto-paperprojekt.
+- **De 5-10K egen kapital er ikke en del af dette spor.**
 
 ---
 
@@ -42,77 +67,81 @@ strategiers optimale sizing ligger som naboer, ikke i hver sin ende.
 |---|---|
 | Kapital | Udelukkende propfirm-kapital |
 | Firma | Topstep er førstevalg, ikke låst |
-| **Kontostørrelse** | **$50K — valgt 2026-09-09** |
-| Mål | Bestå eval, behold funded konto |
-| Autonomi | Backtest og paper-forward **fuldauto**; funded live **semi**, udvides senere. Combine-fasen ikke afgjort |
-| Session | US RTH som udgangspunkt; blanding med døgndrift skal måles først |
-| Instrument | MNQ (mikro Nasdaq) |
-| **Daily Loss Limit** | **Slået til ($1.000 i Combine)** |
-| **Ruinmål** | **Drawdown, 1:1 med Topsteps egen mekanik — ikke "tab i træk"** |
-
-Semi-først er valgt bevidst. Fuldt autonomt er tilladt hos Topstep, så det er ikke en
-regelbegrænsning — det er en tillidsbegrænsning.
+| Kontostørrelse | **$50K** |
+| Instrument | **MNQ** (mikro Nasdaq) |
+| Antal strategier | **To** (spor A og B), tre risikokonfigurationer |
+| Sizing, spor A | **1 MNQ, 1-ATR-stop** (§5) |
+| Timeframe | **15m eller lavere.** 1h og 4h er udelukket — se §5 |
+| Daily Loss Limit | Slået til ($1.000 i Combine) |
+| Ruinmål | Drawdown, 1:1 med Topsteps egen mekanik |
+| Autonomi | Backtest og paper-forward **fuldauto**; funded live **semi**. Combine-fasen ikke afgjort |
+| Session | US RTH som udgangspunkt; døgndrift skal måles før den vurderes |
+| RR | 2:1 — **antaget, ikke målt.** Se B5 |
 
 ---
 
-## 3. Topstep's regler — primærkilder
+## 3. Topsteps tre trin
 
-Alt herunder er fra Topstep's eget help center, hentet og genverificeret 2026-09-09.
-**Regler ændrer sig; slå dem op igen før noget bygges.**
+Verificeret 2026-09-09/10. **Vi talte hidtil om "eval" og "funded" som to trin. Der er
+tre, og de har fundamentalt forskellig risikogeometri.**
 
-### Automatisering — tilladt
+| trin | konto | penge | startsaldo | MLL | trailer MLL? |
+|---|---|---|---|---|---|
+| **1. Trading Combine** | simuleret | abonnement, ingen udbetaling | $50.000 | $2.000 | Ja — på dagsslutsaldo, låser ved startsaldo |
+| **2. Express Funded (XFA)** | **simuleret, men rigtige udbetalinger** | 90% til dig | $0 | $2.000 | Ja — låser permanent ved $0 når saldo når $2.000 |
+| **3. Live Funded (LFA)** | **rigtige markeder** | 90% + bonusser | 20% af samlet saldo, resten frigives i trin | **$1.000** | **Nej. Fast gulv** |
+
+**Trin 2 er hvor pengene begynder, og den er stadig simuleret.** Man kan tjene rigtige
+penge uden nogensinde at røre et live-marked.
+
+### Hvad hvert trin kræver
+
+| trin | krav |
+|---|---|
+| Combine | Nå $3.000. Bedste dag ≤ 50% af profitmålet, ellers **hæves** målet. Min. 2 handelsdage |
+| XFA | **5 vindende dage à $150+ net.** Derefter payout på op til 50% af saldo, maks $5.000, min $125. Efter hver payout nulstilles tælleren og MLL låses på $0 |
+| LFA | 5 benchmark-dage à $150+ pr. cyklus. 50% af saldo indtil 30 benchmark-dage, derefter 100% én gang pr. hverdag |
+
+### Konsekvensen for strategidesign
+
+**Combine belønner en strækning. XFA og LFA belønner en tærskel.**
+
+På Combine skal man samle $3.000 op mod et gulv der følger med op. På XFA skal man lave
+**fem dage med mindst $150 net** — og med 1 MNQ på 2:1 er én vinder $199. Én ren vinder på
+en dag *er* en vindende dag. Markant lavere barre, og den favoriserer en anden adfærd:
+tag gevinsten, luk dagen, gentag.
+
+Efter første payout er XFA-gulvet $0. Man kan derefter aldrig tabe mere end det der står
+på kontoen. **Trin 2 er et mildere regime end evalueringen, ikke et hårdere.**
+
+**Og spor B har en nedre grænse for handelsfrekvens som spor A ikke har.** Fem vindende
+*dage* kan ikke produceres af en strategi der handler én gang om ugen. Det binder
+timeframe-valget — se §5.
+
+### Automatisering og hvor koden kører
 
 > "Custom automated strategies and bots are allowed via the TopstepX / ProjectX API,
 > subject to standard platform rules and our prohibition on high-frequency trading (HFT)."
 
-API-adgang koster **$29/md, $14,50 med koden `topstep`**. REST + WebSocket.
-Ingen sandbox — "API orders are final". Topstep yder ingen support på implementeringen.
-
-### Den bindende begrænsning — hvor koden kører
-
 > "All trading activity must originate from your personal device. The use of VPS, VPNs,
 > and remote servers is prohibited by Topstep's Terms of Use."
 
-**Det udelukker en cloud-server.** Botten skal køre på Mads' egen maskine. Det udelukker
-ikke at han er på arbejde imens — reglen handler om *hvor koden kører*.
+Ingen sandbox — "API orders are final". Ingen support på implementeringen. Macens oppetid
+er en del af strategien og skal løses før første live-handel.
 
-Konsekvens: Macens oppetid bliver en del af strategien. Skal løses ordentligt før første
-live-handel, ikke bagefter.
-
-### Kontoparametre — verificeret pr. kontostørrelse
-
-| konto | profitmål_$ | MLL_$ | mål/MLL | bedste dag maks_$ | maks kontrakter | maks mikroer |
-|---|---|---|---|---|---|---|
-| $50K | 3.000 | 2.000 | **1,50** | 1.500 | 5 | 50 |
-| $100K | 6.000 | 3.000 | 2,00 | 3.000 | 10 | 100 |
-| $150K | 9.000 | 4.500 | 2,00 | 4.500 | 15 | 150 |
-
-**mål/MLL er sizing-invariant** — forholdet ændrer sig ikke når man skruer på
-kontraktantallet. $50K er derfor strukturelt den letteste konto at bestå (1,50 mod 2,00),
-og det er en selvstændig grund til valget ud over prisen.
-
-**Combine-pris:** $50K koster $49/md på standard-sporet (+$149 aktiveringsgebyr pr.
-optjent funded konto) eller $95/md på sporet uden aktiveringsgebyr. Reset koster det
-samme som en måned. Sporet kan ikke ændres efter køb.
-
-### Maximum Loss Limit — mekanikken, præcist
-
-Det her er den vigtigste halve side i dokumentet, fordi to udsagn der lyder modstridende
-begge er sande og handler om hver sin ting:
+### MLL-mekanikken på de trailende trin
 
 | | |
 |---|---|
 | MLL **trailer** på | **dagsslutsaldo**. Aldrig nedad |
-| MLL **låser** | når den når startsaldoen ($50.000), dvs. ved dagsslutsaldo $52.000 |
+| MLL **låser** | Combine: ved startsaldo ($50.000, dvs. dagsslut $52.000). XFA: ved $0 |
 | MLL **brydes** på | **net P&L i realtid, urealiseret tæller med** → øjeblikkelig likvidering |
 | Intradag give-back | tæller **ikke** mod trailet. Kun mod bruddet |
 
-**Trailet er dagsslut, bruddet er realtid.** Topstep er altså ikke intraday-trailing:
-et løb til +$800 der gives tilbage til +$300 koster ingenting i gulv. Topsteps eget
-eksempel: start 50.000 / MLL 48.000 → dag 1 +500 → saldo 50.500, MLL 48.500 → dag 2
-−500 → saldo 50.000, MLL bliver på 48.500.
+**Trailet er dagsslut, bruddet er realtid.** Topstep er ikke intraday-trailing: et løb til
++$800 der gives tilbage til +$300 koster ingenting i gulv.
 
-Konsekvensen for sizing er at risikoen **ikke er jævnt fordelt** over de $3.000:
+Risikoen er ikke jævnt fordelt over de $3.000 i Combine:
 
 | fase | saldo_$ | luft_til_MLL_$ |
 |---|---|---|
@@ -121,49 +150,36 @@ Konsekvensen for sizing er at risikoen **ikke er jævnt fordelt** over de $3.000
 | efter lås | > 52.000 | saldo − 50.000, vokser frit |
 | profitmål nået | 53.000 | 3.000 |
 
-To tredjedele af eval-løbet ligger i det stramme felt, den sidste tredjedel i det løse.
+To tredjedele af eval-løbet ligger i det stramme felt.
 
 ### Daily Loss Limit — ikke det samme som MLL
 
-Dokumentets tidligere udgave blandede de to. De er forskellige grænser med forskellige
-tal på forskellige stadier:
-
-| grænse | Combine $50K | Funded $50K | konsekvens ved brud |
+| grænse | Combine $50K | LFA | konsekvens ved brud |
 |---|---|---|---|
-| Maximum Loss Limit | 2.000 | ikke separat verificeret | konto død |
-| Daily Loss Limit | **1.000 — valgfri** | 2.000 | positioner flades, pause til 17:00 CT. **Ikke** et regelbrud |
+| Maximum Loss Limit | 2.000, trailende | 1.000, fast | konto død |
+| Daily Loss Limit | 1.000, **valgfri** | dynamisk med saldo | positioner flades, pause til næste dag. **Ikke** et regelbrud |
 
-Funded-DLL justeres automatisk ned når saldoen falder under $10K/$5K over startsaldoen
-og revideres om fredagen. Kontoen likvideres automatisk under $1.000, og lukkes efter
-30 dage uden handel.
+**Ved 1-3 mikroer binder DLL'en aldrig.** Værste dag ved 3 kontrakter × 3 handler er $918.
 
-**Ved 1-3 mikroer binder DLL'en aldrig.** Værst tænkelige dag ved 3 kontrakter × 3
-handler er $918, under de $1.000. Den er slået til fordi den ikke koster noget, men den
-beskytter ikke noget ved denne størrelse — den begynder først at virke over ~10 kontrakter.
+### Omkostninger og data
 
-### Konsistens — hæver målet, dumper dig ikke
+| post | $/md |
+|---|---|
+| Combine $50K, standard-spor | 49,00 |
+| API med koden `topstep` | 14,50 |
+| Level 1-markedsdata (Combine + XFA) | 0 |
+| **i alt under evaluering** | **63,50** |
 
-> "Your single best day of profit must stay at or below 50% of your Profit Target."
-
-Overskrides det, **hæves profitmålet** — man dumper ikke. Bestå kræver derfor
-`profit >= max(3.000, 2 × bedste dag)`. Sådan er den implementeret i ruinmodellen.
-
-**Minimum handelsdage: to.** *"You can pass in as few as two days."*
-
-**Ikke verificeret endnu:** om markedsdata følger med API-adgangen eller er et separat
-abonnement, og om funded-MLL afviger fra Combine-MLL.
+Level 2 koster $38/md og er unødvendig på 15m. Historiske data til backtest er en anden
+sag og forventes gratis — se B1. **LFA-datapris er ukendt (C6).**
 
 ---
 
 ## 4. Omkostningsgrundlaget
 
-**Gebyret er nu verificeret for den kanal botten faktisk bruger.** Det gamle tal på
-0,023 R kom fra `research/output/venue_costs.md` linje 289 og var regnet på **Tradovate
-Free** — ikke TopstepX. Præcis MEXC-lektionen, og den blev fanget.
-
 Kontrakten (CME): MNQ er **$2 pr. indekspoint, tick 0,25 = $0,50**.
-Gebyret (TopstepX): **$1,22 rundtur** = $0,50 kurtage + $0,71 børs + $0,01 NFA. Samme
-sats i Combine, Express Funded og Live Funded.
+Gebyret (TopstepX): **$1,22 rundtur** = $0,50 kurtage + $0,71 børs + $0,01 NFA. Samme sats
+på alle tre trin.
 
 Ved NQ 29.639,50 og ATR_15m 0,168% er 1 ATR = 49,79 point = **R = $99,59** pr. kontrakt:
 
@@ -173,39 +189,28 @@ Ved NQ 29.639,50 og ATR_15m 0,168% er 1 ATR = 49,79 point = **R = $99,59** pr. k
 | verificeret, gebyr + spread | **1,22** | 0,75 | — | **1,97** | **0,0198** | **33,99** |
 | **som koden faktisk regner** | 1,22 | 0,75 | 0,50 | **2,47** | **0,0248** | **34,16** |
 
-**Tredje række er den der gælder.** Dokumentets gamle 0,023 R var *uden* slippage, men
-omkostningsmodellen i repoet trækker 0,5 tick pr. side. Det tal backtesten bruger er
-**0,0248 R**. De to må ikke krydslæses, lige så lidt som 2:1 og 1,5:1 må.
+**Tredje række gælder.** Det gamle 0,023 R var uden slippage; modellen i repoet trækker
+0,5 tick pr. side.
 
-Spread på 1,5 tick er stadig et **skøn**, markeret som sådan i `config.yaml`. Åbent
-spørgsmål 6.
+**To af tre led er skøn.** Kun gebyret er verificeret. Spread (1,5 tick) og slippage
+(0,5 tick/side) er gæt — se `claude/ANTAGELSER.md`.
 
-**Omkostningsspørgsmålet er lukket.** Det der mangler er en edge — og §5 sætter nu tal
-på præcis hvor meget det mangler.
-
-### Hvad tallene stadig ikke indeholder
-
-- **Slippage på stops** ud over de modellerede 0,5 tick. Et stop i en hurtig bevægelse
-  fylder dårligere. Ikke målt.
-- **Spread uden for US RTH.** 1,5 tick er et RTH-skøn. Ønsket om døgndrift rammer her.
-- **Faste omkostninger.** API $14,50/md + Combine $49-95/md. På en evalueringskonto er
-  de reelle og løbende — og ruinmodellen viser at *tid* er den skjulte pris ved lav risiko.
+**Omkostningsspørgsmålet er lukket.** Det der mangler er en edge.
 
 ---
 
-## 5. Positionsstørrelse mod MLL — BESVARET
+## 5. Positionsstørrelse og timeframe
 
-Kørt 2026-09-09. Monte Carlo, 20.000 stier pr. celle, horisont 200 handelsdage,
-mekanikken 1:1 med §3. Kode: `research/mll_ruin.py`. Rapport:
-`research/output/mll_ruin.md` + `.csv`.
+### 5a. Ruinmodellen — BESVARET, med forbehold
+
+Kørt 2026-09-09. Monte Carlo, 20.000 stier pr. celle, horisont 200 handelsdage, mekanik
+1:1 med Combine. Kode: `research/mll_ruin.py`. Rapport: `research/output/mll_ruin.md`.
 
 **Præregistreret kriterium:** vej 3 ("acceptér 5% pr. handel") forkastes hvis
 P(ruin før profitmål) > 50% ved WR 40%, 1 MNQ og 1-ATR-stop.
 
-**Resultat: P(ruin) = 10,09% [9,7–10,5].** Pessimistisk brudmodel 11,84% [11,4–12,3].
+**Resultat: P(ruin) = 10,09% [9,7–10,5].** Pessimistisk brudmodel 11,84%.
 **Ikke falsificeret.**
-
-### Gitteret ved WR 40%, netto
 
 | kontrakter | stop_ATR | risiko_pr_handel_$ | pct_af_MLL | bestå_pct | bestå_CI_95 | ruin_pct_opt | ruin_pct_pess | uafgjort_pct | median_dage |
 |---|---|---|---|---|---|---|---|---|---|
@@ -219,149 +224,170 @@ P(ruin før profitmål) > 50% ved WR 40%, 1 MNQ og 1-ATR-stop.
 | 3 | 0,75 | 231,49 | 11,57 | 63,03 | [62,4–63,7] | 36,97 | 43,20 | 0,00 | 21 |
 | 3 | 1,00 | 306,18 | 15,31 | 57,67 | [57,0–58,4] | 42,33 | 50,28 | 0,00 | 14 |
 
-### Hvad tallene siger
+**Bekymringen vendte den forkerte vej.** De 5% af MLL pr. handel er tæt på det bedste valg
+for evalueringen. Profitmålet er 1,5 × MLL — man *skal* tage risiko for at komme i mål.
 
-**Bekymringen vendte den forkerte vej.** De 5% af MLL pr. handel er ikke et problem —
-de er tæt på det bedste valg for evalueringen. Grunden står i §3: profitmålet er 1,5 ×
-MLL. Man *skal* tage risiko for at komme i mål, og skruer man ned, når man aldrig frem.
+Den forsigtige og den aggressive ende havner samme sted (57%) af modsatte grunde: den ene
+dør, den anden **når aldrig frem**. 1 MNQ med 0,5-ATR-stop har 1,1% ruin og 41,6% der ikke
+er i mål efter 200 handelsdage.
 
-**Den lave-risiko-vej koster tid, ikke sikkerhed.** 1 kontrakt med 0,5-ATR-stop har
-1,1% ruin — og **41,6% når aldrig i mål på 200 handelsdage**. Det er ti måneders
-abonnement til $49-95/md for et udfald der hverken er bestået eller dødt.
+**Valgt: den midterste, 1 MNQ med 1-ATR-stop.**
 
-**Omkostninger koster 1,4 til 22,2 procentpoint** af bestå-sandsynligheden, med det
-største udslag netop hvor edgen er tyndest (1 kontrakt, 0,5 ATR: 79,5% brutto → 57,3%
-netto).
+**Og det tal der betyder mest:** over hele sizing-gitteret spænder bestå fra 57 til 89%.
+Over win rate spænder den fra **1 til 99%**. Kontrolcellen uden edge (WR 34%) dør i 72% af
+stierne uanset sizing. **Sizing er andenordens. Edgen er førsteordens.**
 
-**Og det tal der betyder mest:** hen over hele sizing-gitteret spænder bestå fra 57 til
-89%. Hen over win rate spænder den fra **1 til 99%**. Kontrolcellen uden edge (WR 34%,
-under break-even) dør i 72% af stierne uanset sizing. **Sizing er andenordens. Edgen er
-førsteordens.** Dokumentets egen linje — "det der mangler er en edge" — er hermed et tal.
+### 5b. Timeframe-vinduet — hvorfor 1h og 4h er ude
 
-**Eval og funded er forenelige.** 1 kontrakt / 1,0 ATR vinder på eval (88,6% mod 86,0%,
-CI'erne overlapper ikke). 1 kontrakt / 0,75 ATR halverer ruin (5,3% mod 10,1%) for 30
-dage mere. Det er nabo-indstillinger, ikke modsætninger. Den spænding §1 advarede om
-findes, men den er lille.
+Timeframen er klemt fra begge sider, og det er to helt forskellige kræfter.
 
-### De fire veje, afgjort
+**Nedefra af omkostningen.** Omkostningen er fast pr. handel ($2,47). Falder timeframen,
+skrumper 1R, og gebyret fylder mere i R.
 
-| vej | status |
-|---|---|
-| 1. Lavere timeframe | **Ikke afgjort.** Kræver målt ATR på 5m/3m/1m. Modellen antager 15m |
-| 2. Sub-ATR stop | **Ikke afgjort.** Modellen holder WR fast; i virkeligheden falder WR når stoppet strammes. Kræver data |
-| 3. Acceptér 5% | **Overlever.** Ruin 10,1%, bestå 88,6%. Bedste celle i gitteret |
-| 4. Større konto | **Bortfaldet.** $50K er valgt, og mål/MLL 1,50 gør den strukturelt lettest |
+**Ovenfra af MLL'en — og af at 1 MNQ er udelelig.** Stiger timeframen, vokser 1R i dollar.
+Der findes ingen halv kontrakt, så den mindst mulige position bliver hurtigt for stor mod
+et gulv på $2.000.
 
-### Hvad modellen ikke svarer på
+Ved kvadratrods-skalering af ATR fra det målte 15m-tal:
 
-- **Hvordan WR ændrer sig med stopbredden.** Vej 2 er stadig åben.
-- **Konto-strategien.** Målfunktionen der er implementeret er "nå $3.000 før ruin" —
-  altså evalueringen. Konto-strategien har en anden målfunktion (overlev og tag payouts)
-  og kræver payout-reglerne verificeret først.
-- **Vejen inde i en handel.** Derfor to brudmodeller frem for ét tal. Spændet mellem dem
-  er modelusikkerheden, og den er større end stikprøveusikkerheden.
+| timeframe | ATR_pct (skaleret) | R_pr_kontrakt_$ | risiko_pr_handel_$ | **pct_af_MLL** | omk_R | be_WR_pct |
+|---|---|---|---|---|---|---|
+| 1m | 0,0434 | 25,71 | 28,19 | 1,41 | **0,0961** | 36,54 |
+| 3m | 0,0751 | 44,54 | 47,01 | 2,35 | 0,0555 | 35,18 |
+| 5m | 0,0970 | 57,50 | 59,97 | 3,00 | 0,0430 | 34,77 |
+| **15m** | **0,1680** | **99,59** | **102,06** | **5,10** | **0,0248** | **34,16** |
+| 1h | 0,3360 | 199,18 | 201,65 | **10,08** | 0,0124 | 33,75 |
+| 4h | 0,6720 | 398,35 | 400,83 | **20,04** | 0,0062 | 33,54 |
+
+**På 4h koster én MNQ med et 1-ATR-stop en femtedel af hele risikobudgettet. Fem tabende
+handler og kontoen er død.** På 1h er det en tiendedel. Der er ingen vej udenom ved at
+size ned — 1 kontrakt er bunden.
+
+Man kan stramme stoppet i stedet (0,25 ATR på 4h giver samme dollarrisiko som 1 ATR på
+15m), men så handler man reelt 15m-risiko med 4h-signaler, og stoppet ligger langt inde i
+barens normale støj. Det er ikke en løsning, det er en omdøbning.
+
+**Og spor B lukker døren helt.** XFA kræver fem vindende *dage*. På 4h er der 1-2 handler
+om ugen; fem vindende dage tager måneder pr. payout-cyklus. På 15m med 1-3 handler dagligt
+er det uger. **Kravet om dage sætter en nedre grænse på handelsfrekvensen, som en høj
+timeframe ikke kan opfylde.**
+
+**Konklusion: søgefeltet er 15m og nedad.** 5m og 3m er reelle kandidater — de koster mere
+i R men giver luft mod MLL'en og flere chancer for en vindende dag. 1m er dyr (omk_R
+0,096, be_WR 36,5%) og skal kunne bære det.
+
+> **Forbehold:** kvadratrods-skalering er en **antagelse**, ikke en måling. Intradag
+> skalerer ATR typisk *under* kvadratroden, fordi barens range indeholder spread og støj
+> der ikke skalerer med tiden. De lave timeframes har derfor formentlig **højere** ATR end
+> tabellen viser — hvilket gør dem billigere i R og dyrere i MLL-andel end vist. Retningen
+> for 1h/4h er derimod ikke i tvivl: de er ude uanset skaleringsform. **B2 måler det
+> rigtigt.**
+
+### 5c. Forbeholdet på ATR-grundlaget
+
+**Hele §5 står på ATR_15m = 0,168%, og det tal bygger på 60 dages historik**
+(`venue_costs.md` linje 313, Yahoos intraday-cap). Ét volatilitetsregime på to måneder.
+
+Retningen af en fejl er **ikke** entydig:
+
+| ATR 15m | risiko_pr_handel_$ | pct_af_MLL | omk_R | be_WR_pct |
+|---|---|---|---|---|
+| 0,118% (−30%) | 72,18 | 3,61 | 0,0355 | 34,52 |
+| **0,168% (basis)** | **102,06** | **5,10** | **0,0248** | **34,16** |
+| 0,218% (+30%) | 131,94 | 6,60 | 0,0191 | 33,97 |
+
+Højere ATR gør handlen **dyrere i MLL-andel og billigere i R** — omkostningen er fast pr.
+handel mens 1R vokser. Man kan ikke aflæse fortegnet af én kolonne.
+
+**Den bindende begrænsning er at 1 MNQ er udelelig.** Ved ATR +30% risikerer den mindst
+mulige position 6,6% af MLL, og eneste håndtag er stopafstanden — 0,77 ATR for at komme
+tilbage på 5,1%. Et strammere stop koster win rate, og hvor meget ved vi ikke. **Et
+ATR-estimat 30% for lavt kan afgøre om 15m overhovedet er farbar.**
+
+**Derfor afhænger §5 af B1.** Rækker datakildens futureshistorik, rapporteres ATR som
+10./50./90. percentil og go/no-go vurderes på den høje ende. Rækker den ikke, regnes
+sizingen med en eksplicit ATR-antagelse og en følsomhedskolonne.
+
+### 5d. De fire veje
+
+| vej | idé | status |
+|---|---|---|
+| 1 | Lavere timeframe | **Indsnævret til 15m og nedad** (§5b). Præcis valg kræver B2 |
+| 2 | Sub-ATR stop | Kræver data og en strategi |
+| 3 | Acceptér 5% | **Overlever. Valgt for spor A** |
+| 4 | Større konto | Bortfaldet — $50K valgt |
+
+**De fire veje er ikke valgmuligheder man vælger imellem. De er akser i ét sweep**, der
+køres én gang mod en rigtig strategi på rigtige data. Vej 1 og 2 virker begge gennem win
+rate, og win rate kommer fra en strategi.
+
+### 5e. Hvad modellen ikke svarer på
+
+- **Hvordan WR ændrer sig med stopbredden.** Vej 2 er åben.
+- **Spor B.** Målfunktionen er "nå $3.000 før ruin" — altså Combine. XFA og LFA skal
+  modelleres for sig, med "fem dage à $150+" som mål.
+- **Klyngede tab.** Handlerne trækkes uafhængigt. Når der findes en strategi, skal modellen
+  **blok-bootstrappe fra strategiens egen handelssekvens**.
+- **Vejen inde i en handel.** Derfor to brudmodeller frem for ét tal.
 
 ---
 
 ## 6. Repoets tilstand
 
-**Testene er grønne: 94 passed, 4 skipped.**
+**94 passed, 4 skipped.** Committet og pushet (`6a5cd46`, 34 filer).
 
-Apparatet er kopieret fra det gamle repo og er byte-identisk på de filer der kom med:
-`backtest/` (costs, rnorm, paired, metrics, report), `research/` (stats, portfolio,
-venues, diagnostics, tsmom, daily_series, bias_engine), `data/indicators.py`,
-`strategies/base.py`, `config.yaml`.
+Apparatet er kopieret fra det gamle repo, byte-identisk: `backtest/` (costs, rnorm,
+paired, metrics, report), `research/` (stats, portfolio, venues, diagnostics, tsmom,
+daily_series, bias_engine), `data/indicators.py`, `strategies/base.py`, `config.yaml`.
 
-**Kopien var ufuldstændig første gang, og det var lærerigt.** Den forrige sessions
-afhængighedsanalyse scannede toplinje-imports og konkluderede "tre ekstra filer, ikke en
-kaskade". Den ramte forbi, fordi `paired.py:58` er en **doven import inde i en
-funktion** — indrykket, og derfor usynlig for et scan efter linjer der begynder med
-`from` eller `import`.
+**Kopien var ufuldstændig første gang.** Afhængighedsanalysen scannede toplinje-imports og
+konkluderede "tre ekstra filer, ikke en kaskade". Den ramte forbi, fordi `paired.py:58` er
+en **doven import inde i en funktion** — indrykket, og usynlig for et scan efter linjer
+der begynder med `from` eller `import`.
 
-**Runner-beslutningen:** `backtest/runner.py` er ikke kopieret og skal ikke kopieres.
-Den trækker ccxt, yfinance, `data/fetcher.py`, `strategies/registry.py` og de tre
-krypto-composites med sig — kopieres den, *er* det nye repo det gamle repo. Propfirm-
-sporet bygger sin egen MNQ-runner, og `paired.py:58` pointes mod den.
-`tests/test_paired.py::TestEndToEnd` er markeret `skip` med den begrundelse i koden.
+**Runner-beslutningen:** `backtest/runner.py` er ikke kopieret og skal ikke kopieres. Den
+trækker ccxt, yfinance, `data/fetcher.py`, `strategies/registry.py` og de tre
+krypto-composites med sig. Propfirm-sporet bygger sin egen MNQ-runner, og `paired.py:58`
+pointes mod den. `tests/test_paired.py::TestEndToEnd` er markeret `skip` med den
+begrundelse i koden.
 
-`research/run_flip_oos_test.py` er bevidst ikke med — den testede en forkastet hypotese
-fra det gamle projekt. `tests/test_costs.py::TestOutOfSampleSplit` er fjernet med den.
-
-**Én kodeafvigelse fra det gamle repo:** `BaseStrategy.get_asset_class()` faldt tilbage
-på `"crypto"` for alt ukendt. MNQ ville have fået den proportionale 0,20%-model i stedet
-for kontraktmodellen. Den har nu `MNQ → index`. Det er stadig en fallback-fælde for
-ethvert fremtidigt futures-symbol — koblingen mellem `costs.py` og `base.py` bør klippes
-over og erstattes af en eksplicit symbol-til-klasse-tabel i `costs.py`.
-
-MNQ er lagt ind som symbol-override under `backtest.costs.symbols` med de verificerede
-tal fra §4.
+**Én kodeafvigelse:** `BaseStrategy.get_asset_class()` faldt tilbage på `"crypto"` for alt
+ukendt — MNQ ville have fået den proportionale 0,20%-model. Den har nu `MNQ → index`.
+Fallbacken er stadig en fælde for ethvert fremtidigt futures-symbol.
 
 ---
 
-## 7. Signal, mobil og infrastruktur
+## 7. Arbejdsform og sessioner
 
-Uændret fra første udgave.
+Besluttet 2026-09-10.
 
-Semi-autonom drift er ikke kun et tillidsvalg — den er også den sikre vej i forhold til
-personal-device-reglen, fordi **ordren afsendes fra Macen** uanset hvad. Telefonen sender
-kun et "ja".
+| rolle | hvor | opgave |
+|---|---|---|
+| **Overblikssession** (denne) | Cowork | Holder den røde tråd, fælles forståelse af mål og midler. Sparring, idéer, verifikation af regler og tal. **Skriver PRD til hver fase — én ad gangen, når vi når dertil.** Vedligeholder `STRATEGI_PROPFIRM.md` og `claude/ANTAGELSER.md` |
+| **Fasesession** | Cowork eller Code, én pr. fase | Udfører fasens PRD. Arbejder på egen branch |
+| **Claude Code på Macen** | lokalt | Bygger og backtester |
 
-### Arkitektur — pilen vender udad
+Reglen der gør det til andet end en arbejdsdeling: **PRD'er skrives én ad gangen.** Skrev
+vi alle faser nu, ville vi låse beslutninger vi endnu ikke har grundlag for — og fase 3's
+PRD skal skrives med fase 2's resultater i hånden, ikke uden.
 
-    Mac finder setup
-      -> sender signal ud via Telegram-bot
-      -> Mads trykker ja på telefonen
-      -> Macen poller efter svaret og lægger ordren
+Git: nye branches pr. fase, ikke arbejde direkte på `main`.
 
-Ingen åbne porte, ingen tunnel, ingen angrebsflade mod den maskine der handler.
-Kræver en fallback for det tilfælde at Telegram er nede.
+### Testning kræver ikke Topstep
 
-### Bekræftelsesgaten gælder KUN live med rigtige penge
+Backtest og paper-forward kører udelukkende på Macen med egne data. **Topstep-konto og
+API-abonnement er først nødvendigt når evalueringen faktisk skal købes.** Det betyder at
+alt frem til og med et validt paper-resultat kan bygges uden at betale noget.
 
-    backtest        fuldauto    strategiens rå egenskaber
-    paper-forward   fuldauto    referencen, kører permanent
-    Combine         ÅBENT       ingen kapital på spil, kun evalueringsgebyret
-    funded live     semi        bekræftelse via Telegram
-
-En testfase hvor Mads skal bekræfte, måler hans vagtplan lige så meget som strategien.
-**Paper-instansen bliver ved med at køre fuldautomatisk parallelt med den
-semi-automatiske live-instans.** Forskellen mellem de to kurver *er* prisen for
-bekræftelsesgaten — direkte observeret frem for estimeret.
-
-### Beslutninger for live-fasen
-
-| | |
-|---|---|
-| Kanal | Telegram-bot |
-| Timeout | Signalet udløber. Botten gør intet hvis der ikke svares i tide |
-| Svarvindue | 5 minutter |
-| Uden at spørge: lukke position | **Tilladt** |
-| Uden at spørge: flytte stop/TP | **Tilladt** |
-| Uden at spørge: åbne position | **Ikke tilladt** |
-
-Tilladelserne er asymmetriske med vilje. At lukke en position kan aldrig skabe ny
-eksponering, og en bot der skal bede om lov til at redde kontoen mens telefonen ligger i
-et skab er farligere end en der bare gør det.
-
-**Krav:** botten logger både hvad den ville have gjort og hvad der faktisk skete.
-Bygges ind fra dag ét.
-
-### Infrastruktur
-
-`RunAtLoad` + `KeepAlive` + `ThrottleInterval`, kopieret fra
-`com.madskvist.tradingbot.plist`. **Men `KeepAlive` er farligere på en prop-konto.**
-Dør botten med en åben position og genstartes, må den ikke tro at den står flad — MLL'en
-tæller urealiseret tab i realtid.
-
-**Krav: tilstandsgenopretning ved opstart.** Botten spørger Topstep "hvad har jeg åbent?"
-før den gør noget som helst andet.
+Ét forbehold, og det er den samme fælde som på guld: **backtest på én kilde og live på
+TopstepX' feed er to forskellige serier.** Vi så 20% forskel i ATR mellem to kilder for
+samme instrument og periode, formentlig fordi bar-grænserne lå forskelligt. Før første
+live-handel skal de to serier holdes op mod hinanden — det er ikke en detalje, det er
+forskellen på om backtesten beskriver det marked botten handler i.
 
 ---
 
 ## 8. Metoderegler
-
-Ikke til forhandling. De er grunden til at fire hypoteser blev afvist i stedet for
-rationaliseret — og til at det forkerte gebyrtal blev fanget før det kom i en model.
 
 1. **Præregistrér kriteriet før kørslen.**
 2. **Konfidensinterval på alt.** Krydser det nul, er resultatet uafgjort.
@@ -369,81 +395,98 @@ rationaliseret — og til at det forkerte gebyrtal blev fanget før det kom i en
 4. **Gates hører til i live, aldrig i backtesten.**
 5. **Alle tal både brutto og netto.**
 6. **Enheden står i kolonnenavnet.**
-7. **En gebyrsats tæller først når den er verificeret for den kanal botten faktisk
-   bruger.** Fanget igen 2026-09-09: Tradovate Free mod TopstepX.
+7. **En gebyrsats tæller først når den er verificeret for den kanal botten bruger.**
 8. **Stop efter hver kørsel.** Ingen konfigurationsændringer, ingen strategiforslag.
-9. **Egne idéer skal ikke valideres videnskabeligt** — de vurderes på: kan den
-   automatiseres, passer den til botten, hvor omfattende er ændringen.
+9. **Egne idéer valideres ikke videnskabeligt** — de vurderes på: kan den automatiseres,
+   passer den ind, hvor omfattende er ændringen.
 10. **Alt andet sammenlignes mod nyeste litteratur.**
+11. **Der sizes ikke efter punktestimater.** Percentiler, og go/no-go på den ende hvor det
+    gør ondt.
 
 ---
 
-## 9. Åbne spørgsmål, i den rækkefølge de skal besvares
+## 9. Åbne spørgsmål
 
-**Besvaret:**
+Bogstavet er fasen, tallet er rækkefølgen inden for fasen.
 
-1. ~~Positionsstørrelse mod MLL.~~ **Lukket, §5.**
-2. ~~Topstep's profitmål og Combine-pris pr. kontostørrelse.~~ **Lukket, §3.**
-4. ~~Tæller en ordre afsendt fra telefonen som "your personal device"?~~ **Bortfaldet.**
+### A. Besvaret
 
-**Før kode:**
+| # | spørgsmål | svar |
+|---|---|---|
+| A1 | Positionsstørrelse mod MLL | §5a. 1 MNQ, 1-ATR-stop. Forbehold for ATR-grundlaget |
+| A2 | Profitmål og priser pr. kontostørrelse | §3. $3.000 / $2.000 / $49-95 md |
+| A3 | Følger markedsdata med API-adgangen? | §3. Level 1 gratis i Combine og XFA. Level 2 $38/md, unødvendig |
+| A4 | Tæller en ordre fra telefonen som "personal device"? | Bortfaldet. Ordren afsendes fra Macen |
+| A5 | Hvordan ser Topsteps trin faktisk ud? | §3. Tre trin, ikke to. XFA er simuleret men betaler |
+| A6 | Kan 1h/4h bruges? | §5b. **Nej.** 10% og 20% af MLL pr. handel, og for få dage til spor B |
 
-3. Følger markedsdata med API-adgangen, eller er det et separat abonnement?
-5. **Historik til backtest.** Nu forfremmet: den er en *forudsætning* for at afgøre vej 1
-   og vej 2, ikke noget der kommer bagefter. `londonstrategicedge.com` har 14 opløsninger
-   inkl. 15m, bulk Parquet, gratis nøgle, licens der tillader egen research og trading.
-   **Futures-dybden er ikke oplyst.** Test: hent NQ 15m, se hvor langt tilbage det går,
-   hold en dag op mod Yahoo.
-6. **Reelt spread på MNQ**, målt frem for gættet — og målt pr. tidsblok, så ønsket om
-   døgndrift kan vurderes i stedet for antages.
-11. **Målt ATR pr. timeframe** (15m/5m/3m/1m, RTH og døgn). Uden den kan vej 1 ikke
-    afgøres. Afhænger af 5.
-12. **Payout-reglerne**, så konto-strategiens målfunktion kan defineres. Uden dem er
-    §5's ruinmodel kun besvaret for eval-halvdelen.
+### B. Før kode — blokerende, i rækkefølge
 
-**Før live:**
+| # | spørgsmål | afhænger af | hvorfor den blokerer |
+|---|---|---|---|
+| **B1** | **Datagrundlag.** Hvilke kilder findes, hvor dybt går futureshistorikken, hvad er gratis, og stemmer barerne overens på tværs af kilder? | — | **Der er ingen prisdata i repoet. Intet kan backtestes.** Se `claude/PRD_FASE1_DATAGRUNDLAG.md` |
+| **B2** | **ATR-fordeling pr. timeframe** (15m/5m/3m/1m, RTH og døgn) som 10./50./90. percentil | B1 | Afgør vej 1 præcist og efterprøver hele §5 |
+| **B3** | **Reelt spread pr. tidsblok** | B1 | **Kan formentlig ikke måles fra OHLC-barer** — spread kræver bid/ask. Første delopgave er at afgøre om det overhovedet kan måles, og hvorfra |
+| **B4** | **Edge-hypotese til indeksfutures** | — | Uden den har vi et måleapparat uden noget at måle. **Det egentlige projekt.** Eget dokument |
+| **B5** | **Understøtter MNQ 2:1, eller skal vi til 1,5:1?** | B1 + B4 | Ved 1,5:1 springer be_WR fra 34,2% til ~40% og hele §5 er ugyldig |
 
-7. **Tilstandsgenopretning ved opstart.** Uden den er `KeepAlive` en risiko.
-8. Netværkstab midt i en åben position.
-9. Fallback når Telegram er nede.
-10. Slippage på stops, målt.
-13. Hvad gør systemet når MLL'en nærmer sig? Eksplicit regel i koden, ikke en konsekvens
-    af at strategien tilfældigvis holder op med at handle.
+### C. Før live
+
+| # | spørgsmål |
+|---|---|
+| C1 | **Tilstandsgenopretning ved opstart.** Uden den er `KeepAlive` en risiko frem for en sikkerhed |
+| C2 | Netværkstab midt i en åben position |
+| C3 | Fallback når Telegram er nede |
+| C4 | Slippage på stops, målt |
+| C5 | Eksplicit regel i koden når MLL nærmer sig |
+| C6 | Hvad koster markedsdata på LFA? |
+| C7 | **Afvigelse mellem backtest-serien og TopstepX' feed**, målt (§7) |
 
 ---
 
-## 10. Hvad der IKKE er en del af dette spor
+## 10. Definition af "klar til at bygge"
 
-- **TSMOM.** Ude af projektet. Dokumenteret i `STRATEGI_TSMOM.md` som reference.
-- **Krypto.** Omkostningen på 15m gør sporet dødt for daytrading.
-- **De 5-10K egen kapital.** Hører til det eksisterende projekt.
+Vi bygger ikke fordi det føles som næste skridt. Vi er klar når **alle fem** holder:
+
+1. **B1-B3 er besvaret** — der findes data, og ATR er målt som fordeling.
+2. **B4 har mindst én kandidat** med et svar på "hvorfor betaler nogen mig for det her?"
+3. **B5 er afgjort** — vi ved hvilket RR instrumentet understøtter.
+4. **`claude/ANTAGELSER.md` har ingen S'er på kritisk vej** — eller de tilbageværende skøn
+   har en følsomhedskolonne der viser at konklusionen holder i begge ender.
+5. **Fælles forståelse af mål og midler.** Begge parter kan gengive hvad vi bygger, hvorfor,
+   og hvad der ville få os til at stoppe.
+
+---
+
+## 11. Hvad der IKKE er en del af dette spor
+
+- **TSMOM.** Ude. Dokumenteret i `STRATEGI_TSMOM.md` som reference.
+- **Krypto.** Omkostningen på 15m gør sporet dødt for daytrading. Bemærk at
+  `STRATEGI_DAYTRADING.md` §6's edge-kandidater alle er krypto-specifikke og **ikke**
+  overføres — se B4. Det dokument er en historisk protokol og rettes ikke bagud.
+- **De 5-10K egen kapital.**
 - **Aktie-execution.** Udskudt.
 
 ---
 
-## 11. Åbne observationer fra det eksisterende projekt
+## 12. Åbne observationer fra det eksisterende projekt
 
-Ikke undersøgt, men noteret så de ikke fordamper:
-
-- **Break-even-stop og trailing stop fungerer muligvis ikke som håbet.** Mads'
-  observation fra live paper-handler. Ikke målt. Kandidat til en falsifikationstest.
+- **Break-even-stop og trailing stop fungerer muligvis ikke som håbet.** Mads' observation
+  fra live paper-handler. Ikke målt. Kandidat til en falsifikationstest.
 - **Prisen rammer ofte lige akkurat ikke TP**, hvorefter den går mod SL eller lukkes af
-  tidsstop. Det var begrundelsen for `tp_rr_ratio` 1,5 i det nuværende projekt.
-
-Bemærk at propfirm-sporets tabeller regner med **2:1**, ikke 1,5:1. Ved 2:1 med
-omkostning 0,0248 R er break-even 34,16%; ved 1,5:1 er den ~40%. **De to må ikke
-krydslæses.**
+  tidsstop. Det var begrundelsen for `tp_rr_ratio` 1,5 i det gamle projekt — og præcis
+  grunden til at B5 findes.
 
 ---
 
 ## Kilder
 
 - help.topstep.com: TopstepX API Access, Trading Combine Parameters, Live Funded Account
-  Parameters, What is the Maximum Loss Limit, Daily Loss Limit in the Trading Combine,
-  What is the Consistency Target, TopstepX Commissions and Fees, Topstep Pricing
-  (alle 2026-09-09)
-- topstep.com/blog/prop-firm-drawdown-rules — end-of-day-drawdown-modellen
+  Parameters, Maximum Loss Limit, Daily Loss Limit, Consistency Target, TopstepX
+  Commissions and Fees, Payout Policy, Level 1 and Level 2 Market Data, Pricing
+- topstep.com: how-it-works, express-funded-account-rules, live-funded-account-rules,
+  blog/prop-firm-drawdown-rules
 - cmegroup.com — Micro E-mini Nasdaq-100 contract specifications
 - NQ-niveau 29.639,50 pr. 2026-09-07
-- `research/output/venue_costs.md` — gammelt repo, læst. Bemærk: Tradovate-baseret
-- `research/output/mll_ruin.md` — dette repo, §5
+- `research/output/venue_costs.md` — gammelt repo, læst. Tradovate-baseret
+- `research/output/mll_ruin.md` — dette repo, §5a
