@@ -24,6 +24,13 @@ def aggregate(df_1m: pd.DataFrame, minutes: int) -> pd.DataFrame:
     if minutes < 1 or 60 % minutes:
         # Kun divisorer af 60: så er epoke-forankring det samme som urforankring.
         raise ValueError(f"timeframe {minutes}m deler ikke timen")
+    if minutes == 1 and (df_1m.index == df_1m.index.floor("1min")).all():
+        # Allerede på minutgrænser: hver bar er sin egen bin. En groupby med én gruppe
+        # pr. bar ville give samme resultat, bare langsomt.
+        ud = df_1m.copy()
+        ud["n_1m"] = 1
+        ud.index.name = "time"
+        return validate_ohlcv(ud, "aggregate 1m")
     noegle = df_1m.index.floor(f"{minutes}min")
     g = df_1m.groupby(noegle, sort=True)
     ud = pd.DataFrame({
