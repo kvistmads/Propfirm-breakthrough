@@ -1,0 +1,97 @@
+{
+ "koert_utc": "2026-09-10T23:45:29.918852+00:00",
+ "yahoo": {
+  "snapshot": "2026-09-10",
+  "k3": {
+   "1m": [
+    {
+     "aar": "hele",
+     "sessioner": 19,
+     "forventede_barer": 7410,
+     "manglende_barer": 6,
+     "sessioner_med_huller": 2,
+     "sessioner_uden_data": 0,
+     "mangler_pct": 0.0809716599
+    }
+   ],
+   "5m": [
+    {
+     "aar": "hele",
+     "sessioner": 50,
+     "forventede_barer": 3900,
+     "manglende_barer": 0,
+     "sessioner_med_huller": 0,
+     "sessioner_uden_data": 0,
+     "mangler_pct": 0.0
+    }
+   ],
+   "15m": [
+    {
+     "aar": "hele",
+     "sessioner": 50,
+     "forventede_barer": 1300,
+     "manglende_barer": 0,
+     "sessioner_med_huller": 0,
+     "sessioner_uden_data": 0,
+     "mangler_pct": 0.0
+    }
+   ]
+  },
+  "k4": [
+   {
+    "index": 0,
+    "timeframe": "1m",
+    "session": "RTH",
+    "barer": 7404,
+    "flade": 0,
+    "flade_pct": 0.0,
+    "holder": true
+   },
+   {
+    "index": 1,
+    "timeframe": "1m",
+    "session": "døgn",
+    "barer": 25387,
+    "flade": 6,
+    "flade_pct": 0.0236341435,
+    "holder": true
+   },
+   {
+    "index": 2,
+    "timeframe": "5m",
+    "session": "RTH",
+    "barer": 3900,
+    "flade": 0,
+    "flade_pct": 0.0,
+    "holder": true
+   },
+   {
+    "index": 3,
+    "timeframe": "5m",
+    "session": "døgn",
+    "barer": 13683,
+    "flade": 0,
+    "flade_pct": 0.0,
+    "holder": true
+   },
+   {
+    "index": 4,
+    "timeframe": "15m",
+    "session": "RTH",
+    "barer": 1300,
+    "flade": 0,
+    "flade_pct": 0.0,
+    "holder": true
+   },
+   {
+    "index": 5,
+    "timeframe": "15m",
+    "session": "døgn",
+    "barer": 4582,
+    "flade": 0,
+    "flade_pct": 0.0,
+    "holder": true
+   }
+  ]
+ }
+}

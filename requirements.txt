@@ -43,3 +43,9 @@ alembic>=1.13,<2.0
 # ville vaere ubrugelig til begge dele. Formatet er valgt FOER foerste
 # snapshot, saa arkivet ikke bliver delt i to inkompatible halvdele.
 pyarrow>=15
+
+# Fase 1 (propfirm) — datalaget i data/. NYSE-kalenderen til RTH-markering og
+# Databento-klienten til CME Globex (GLBX.MDP3). Datalaget og testene er koert paa
+# Python 3.14 / pandas 3.0 / numpy 2.5 uden ccxt, chromadb og alembic.
+exchange_calendars>=4.5
+databento>=0.60

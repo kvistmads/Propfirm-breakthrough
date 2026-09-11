@@ -2,3 +2,9 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Nøgler. Databento-nøglen ligger her og må aldrig committes.
+.env
+
+# Prisdata-cache (fase 1). Licenserne tillader egen brug, ikke videredistribution.
+data/cache/
