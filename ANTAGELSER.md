@@ -5,7 +5,8 @@ vælter hvis det er forkert. Registeret findes fordi vi allerede har fanget én 
 netop denne type: 0,023 R var regnet på Tradovate Free, ikke på den kanal botten bruger.
 Den fejl kostede ingenting, fordi den blev fanget. Den næste gør måske.
 
-**Opdateret:** 2026-09-10.
+**Opdateret:** 2026-09-11 — fase 1: ATR og MNQ-spread målt, datakilde valgt. Tal og metode i
+`research/output/atr_fordeling.md` og `research/output/datakilder.md`.
 
 ## Statuskoder
 
@@ -25,13 +26,18 @@ Den fejl kostede ingenting, fordi den blev fanget. Den næste gør måske.
 | MNQ indeksmultiplikator | $2/point | **V** | CME contract specs | Alt. Hele dollarregnestykket |
 | MNQ ticksize | 0,25 point = $0,50 | **V** | CME contract specs | Spread- og slippagetal |
 | Gebyr, rundtur | $1,22 | **V** | TopstepX Commissions and Fees, 2026-09-09 | omk_R og be_WR — men kun med ~0,003 R |
-| Spread | 1,5 tick = $0,75 | **S** | Overtaget fra `venue_costs.md`. Aldrig målt | omk_R. Er den 3 tick uden for RTH, fordobles spreaddelen |
+| **Spread MNQ, RTH** | **1,73 tick** i snit (p50 2, p90 2; 34% af tiden på 1 tick) = $0,87 pr. rundtur | **M** | Databento MNQ.v.0 bbo-1s, stratificeret stikprøve af 92 Globex-dage 2019-2026, rolige og volatile. `research/output/spread_mnq.md` | omk_R. Volatile dage 1,94 tick, rolige 1,55 |
+| **Spread MNQ, uden for RTH** | **2,17 tick** i snit (p50 2, p90 3; 16% på 1 tick) = $1,08 pr. rundtur | **M** | samme. Genåbningen 18:00 ET 2,91 tick. Steget hvert år siden 2023 (1,74 → 2,58) | omk_R ved døgndrift |
+| Spread i `config.yaml` | 1,5 tick = $0,75 | **S** | Overtaget fra `venue_costs.md`. **Uændret** — fase 1 ændrer ingen konfiguration | Alle omkostningstal i §4-§5 bruger stadig skønnet |
 | Slippage | 0,5 tick pr. side | **S** | `backtest/costs.py`-default. Ingen offentlig statistik at slå op | omk_R. Stop i hurtige bevægelser fylder værre |
-| **omk_R netto ved 1 ATR** | **0,0248** | **S** | Afledt: $2,47 / $99,59 | be_WR og hele §5-gitteret |
-| be_WR ved 2:1 | 34,16% | **V** | Beregnet af `research/stats.breakeven_win_rate` | — (følger af ovenstående) |
+| **omk_R netto ved 1 ATR, 15m RTH** | **p50 0,0180 · p90 0,0321** | **S** | Afledt: $2,47 / R ved målt RTH-ATR 2016-2026 og §5's NQ-niveau. ATR-leddet er nu M; omkostningen er stadig skønnet (§5 regnede 0,0248) | be_WR og hele §5-gitteret |
+| be_WR ved 2:1, 15m RTH | p50 33,93% · p90 34,40% | **V** | Beregnet af `research/stats.breakeven_win_rate` (§5: 34,16%) | — (følger af ovenstående) |
 
-**Bemærk:** gebyret er verificeret, men de to andre led er skøn. To tredjedele af
-omkostningen i dollar er verificeret; en tredjedel er gættet.
+**Bemærk:** gebyret er verificeret, og spreadet er nu målt — skønnet på 1,5 tick er for lavt i
+begge sessioner (RTH +16%, uden for RTH +44%). Med målt spread bliver rundturen $2,59 i RTH og
+$2,80 uden for RTH mod $2,47. På 15m RTH flytter det omk_R_netto_p50 fra 0,0180 til 0,0188 og
+be_WR_pct_netto_p90 fra 34,40% til 34,46%. Slippage er stadig skøn. **`config.yaml` er ikke
+ændret** — omkostningstallene i §4-§5 bruger stadig 1,5 tick.
 
 ---
 
@@ -39,35 +45,35 @@ omkostningen i dollar er verificeret; en tredjedel er gættet.
 
 | tal | værdi | status | kilde | vælter hvis forkert |
 |---|---|---|---|---|
-| ATR 15m på NQ | 0,168% | **M, svagt** | `venue_costs.md` linje 313: **60 dages historik**, Yahoos intraday-cap | Hele §5-gitteret. Se nedenfor |
-| ATR på 5m/3m/1m | **ukendt** | — | Ikke målt. Kun kvadratrods-skaleret | Timeframe-valget |
-| **Kvadratrods-skalering af ATR** | ATR_T = ATR_15m × √(T/15) | **A** | Lærebogsantagelse | §5b's tabel. Intradag skalerer ATR typisk *under* kvadratroden, fordi barens range indeholder spread og støj der ikke skalerer med tiden |
-| NQ-prisniveau | 29.639,50 | **V** | 2026-09-07 | Skalerer alle dollartal lineært |
+| **ATR 15m NQ, RTH** | p10 0,130 · **p50 0,232 · p90 0,459%** | **M** | Databento NQ.v.0 1m, K3-beståede år 2016-2026, 69.610 barer | §5-gitteret. **Go/no-go på p90** |
+| **ATR 15m NQ, døgn** | p10 0,062 · p50 0,132 · p90 0,296% | **M** | samme, 251.176 barer | Døgndrift |
+| ATR 5m / 3m / 1m, RTH | p50 0,132 / 0,101 / 0,057% · p90 0,271 / 0,210 / 0,123% | **M** | samme | Timeframe-valget |
+| ATR 5m / 3m / 1m, døgn | p50 0,071 / 0,053 / 0,029% · p90 0,179 / 0,140 / 0,081% | **M** | samme. 1m døgn fejler K4 (2,0% flade barer) | — |
+| ATR 15m, §5's basis | 0,168% — **erstattet** | **M** | `venue_costs.md` linje 313: 60 dage Yahoo. **Målt på døgnserien, ikke RTH** — samme vindue giver døgn p50 0,165% og RTH p50 0,227% | Erstattet af rækkerne ovenfor |
+| Kvadratrods-skalering af ATR | ATR_T = ATR_15m × √(T/15) | **M** | Ikke længere en antagelse — hver timeframe er målt. Formen holder inden for −2 til −6% i RTH og −7 til −15% i døgn; de lave timeframes har *lavere* ATR end √T forudsiger. §5b's niveau var forkert fordi basis var døgn | Ingen |
+| NQ-prisniveau | 29.138,00 | **V** | RTH-luk 2026-09-10, CME via Databento (NQU6). §5 regnede ved 29.639,50 (2026-09-07) | Skalerer alle dollartal lineært |
 
-### Hvorfor ATR er registerets svageste tal
+### ATR efter fase 1
 
-60 dage er ét volatilitetsregime. Retningen af fejlen er **ikke** entydig, og det er
-pointen — de to konsekvenser trækker hver sin vej:
+**Status: M med kendt stikprøve** — 10,7 år NQ 1m fra CME, i de år hvor RTH-dækningen er komplet.
+2010-2015 er målt men består ikke K3 og indgår ikke i go/no-go-grundlaget.
 
-| ATR 15m | R_pr_kontrakt_$ | risiko_pr_handel_$ | pct_af_MLL | omk_R | be_WR_pct |
+Genberegnet ved §5's NQ-niveau (29.639,50) og $2,47 pr. rundtur. Kun ATR er skiftet:
+
+| 1 MNQ, 1-ATR-stop, 15m | risiko_pct_af_MLL_netto_p50 | risiko_pct_af_MLL_netto_p90 | omk_R_netto_p50 | omk_R_netto_p90 | be_WR_pct_netto_p90 |
 |---|---|---|---|---|---|
-| 0,118% (−30%) | 69,71 | 72,18 | **3,61** | 0,0355 | 34,52 |
-| **0,168% (basis)** | **99,59** | **102,06** | **5,10** | **0,0248** | **34,16** |
-| 0,218% (+30%) | 129,47 | 131,94 | **6,60** | 0,0191 | 33,97 |
+| §5 (0,168%, én værdi) | 5,10 | 5,10 | 0,0248 | 0,0248 | 34,16 |
+| **målt RTH** | **7,00** | **13,72** | 0,0180 | 0,0321 | 34,40 |
+| målt døgn | 4,05 | 8,90 | 0,0315 | 0,0675 | 35,58 |
 
-**Højere ATR gør handlen dyrere i MLL-andel og billigere i R.** Omkostningen er fast pr.
-handel mens 1R vokser, så gebyret fylder mindre. Man kan ikke aflæse "højere ATR = værre"
-af én kolonne.
+**Sessionen er den største enkeltfaktor.** RTH ligger 75% over døgn på medianen og 55% på p90.
+§5's 0,168% ligger mellem de to: 28% under RTH-medianen og 27% over døgn-medianen.
 
-**Den bindende begrænsning er at 1 MNQ er udelelig.** Man kan ikke size under én kontrakt.
-Ved ATR +30% risikerer den mindst mulige position 6,6% af MLL, og eneste håndtag er at
-stramme stoppet — til 0,77 ATR for at komme tilbage på 5,1%. Et strammere stop koster win
-rate, og hvor meget ved vi ikke. **Et ATR-estimat der er 30% for lavt kan derfor afgøre om
-15m overhovedet er farbar — ikke bare flytte en procentsats.**
+**Regimet er den næststørste.** risiko_pct_af_MLL_netto_p90 på 15m RTH spænder fra 6,19% (2017)
+til 19,37% (2020) ved dagens NQ-niveau; 2022 18,18%, 2025 13,09%, 2026 hidtil 11,31%.
 
-**Konsekvens for metoden:** size ikke efter et punktestimat. Rapportér 10./50./90.
-percentil af ATR over så lang historik som muligt og vurder go/no-go på den **høje** ende —
-samme regel som blev brugt på guldprisen. Det kræver fase 1.
+**Retningen er stadig tosidet:** højere ATR gør handlen dyrere i MLL-andel og billigere i R. Den
+bindende begrænsning er fortsat at 1 MNQ er udelelig.
 
 ---
 
@@ -111,6 +117,7 @@ Disse er **A** — vi har valgt dem. §5's tal gælder kun i det omfang de holde
 | Stoppet rammes præcist | ja | Slippage på stops er ikke målt |
 | Horisont | 200 handelsdage | Ved lav risiko er censureringen stor (41,6% i den forsigtigste celle) |
 | Målfunktion | "nå $3.000 før ruin" | Gælder kun Combine. XFA og LFA har en anden målfunktion: fem dage à $150+ |
+| **ATR-input** | **0,168% (15m)** | **Målt på døgnserien.** Målt 15m RTH 2016-2026: p50 0,232%, p90 0,459% — 7,00% og 13,72% af MLL pr. handel mod modellens 5,10%. Modellen er ikke genkørt |
 
 **Rettelse besluttet 2026-09-10:** når der findes en strategi, skal ruinmodellen ikke
 trække uafhængige handler, men **bootstrappe fra strategiens egen handelssekvens** (blok-
@@ -124,7 +131,14 @@ strategien frem for antagelsen.
 | spørgsmål | konsekvens |
 |---|---|
 | Findes der en edge på indeksfutures på 15m eller lavere? | Uden den er alt ovenstående ligegyldigt |
-| Rækker en gratis kildes futureshistorik? | Afgør om ATR kan måles som fordeling eller kun som skøn |
-| Kan spread overhovedet måles fra de data vi kan få? | Spread kræver bid/ask; OHLC-barer har det ikke |
-| Hvor meget afviger backtest-serien fra TopstepX' feed? | Guld-lektionen: 20% forskel i ATR mellem to kilder for samme instrument |
+| Hvor meget afviger backtest-serien fra TopstepX' feed? | Guld-lektionen: 20% forskel i ATR mellem to kilder. Yahoo og Databento er identiske bar for bar, men TopstepX er ikke sammenlignet (C7) |
+| Slippage på stops | Spread er målt; fyldet i en hurtig bevægelse er ikke (C4) |
 | Hvad koster markedsdata på LFA? | Løbende omkostning i det eneste live-trin |
+
+### Besvaret i fase 1
+
+| spørgsmål | svar |
+|---|---|
+| Rækker en gratis kildes futureshistorik? | **Nej, ikke uden konto.** Yahoo har 60 dage på 15m. Databento via gratis kredit: 16,3 år NQ 1m, heraf 10,7 år (2016-2026) med komplet RTH |
+| Kan spread overhovedet måles fra de data vi kan få? | **Ja** — fra Databentos bid/ask, ikke fra OHLC. Se spread-rækkerne i §1 |
+| Stemmer barerne overens på tværs af kilder? | **Ja.** Yahoo og Databento har identiske 1m- og 15m-barer, samme bar-grænser og tidszone (K2) |
