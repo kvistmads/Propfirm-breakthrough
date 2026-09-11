@@ -335,6 +335,15 @@ def main() -> None:
         k4 = k4_flade(series)
         res["k4"] = _records(k4)
         res["k4_1m_doegn_pr_aar_pct"] = flade_pr_aar(series[(1, DOEGN)]).round(3).to_dict()
+        # De år der består K3 er go/no-go-grundlaget; K1 og K4 gøres også op for dem.
+        k3_ok = [int(a) for a, r in k3.drop(index="hele").iterrows() if r["mangler_pct"] < K3_PCT]
+        i_k3 = lambda d: d[np.isin(d.index.tz_convert(ET).year, k3_ok)]
+        res["k3_bestaaede_aar"] = k3_ok
+        res["k1_k3_aar"] = k1_dybde(i_k3(nq))
+        k4_k3 = k4_flade({key: i_k3(d) for key, d in series.items()})
+        res["k4_k3_aar"] = _records(k4_k3)
+        print("K3-beståede år:", k3_ok, "| K1 i dem:", res["k1_k3_aar"]["aar"], "år")
+        print("K4 i K3-beståede år:\n" + k4_k3.to_string(index=False))
 
         d15, d1 = series[(15, DOEGN)], series[(1, DOEGN)]
         k2 = []
