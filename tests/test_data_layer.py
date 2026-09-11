@@ -355,3 +355,22 @@ def test_year_chunks_split_on_calendar_years():
         ("2026-01-01", "2026-02-01")]
     assert src_databento.year_chunks("2025-01-01", "2026-01-01") == [
         ("2025-01-01", "2026-01-01")]
+
+
+def test_mnq_is_never_requested_before_its_listing(tmp_path):
+    """MNQ blev noteret 2019-05-06. En anmodning før afvises før prisen overhovedet slås op."""
+    cli = _FakeClient(cost=0.01, raw=_db_raw())
+    with pytest.raises(ValueError, match="2019-05-06"):
+        src_databento.plan(cli, "MNQ.v.0", "bbo-1m", "2019-05-01", "2019-05-10",
+                           cache_root=tmp_path)
+    assert cli.estimates == 0
+    src_databento.plan(cli, "MNQ.v.0", "bbo-1s", "2019-05-06T22:00", "2019-05-07T21:00",
+                       cache_root=tmp_path)
+    src_databento.plan(cli, "NQ.v.0", "ohlcv-1m", "2010-06-06", "2010-06-07",
+                       cache_root=tmp_path)
+    assert cli.estimates == 2
+
+
+def test_the_phase_budget_is_forty_dollars():
+    """Hævet fra $25 den 2026-09-11 — spread skal måles, ikke skønnes."""
+    assert src_databento.BUDGET_USD == 40.0
