@@ -293,7 +293,8 @@ def main() -> None:
     graense = u["rth_range_pct"].quantile([1 / 3, 2 / 3]).to_numpy()
     dage = vaelg(u)
     OUT.mkdir(parents=True, exist_ok=True)
-    dage.to_csv(OUT / "spread_mnq_stikproeve_dage.csv")
+    # Uden NQ-priser: listen skal kunne committes, prisdata må ikke.
+    dage[["aar", "tercil", "rth_range_pct", "n_1m"]].to_csv(OUT / "spread_mnq_stikproeve_dage.csv")
     print(f"univers {len(u)} sessioner | tercilgrænser {graense.round(3)} | "
           f"stikprøve {len(dage)} dage")
     print(dage.groupby(["aar", "tercil"]).size().unstack(fill_value=0).to_string())
