@@ -37,7 +37,12 @@ altid den ende hvor det gør ondt — estimat-invarianten.
 **Go/no-go vurderes på p90** (metoderegel 11).
 
 Følsomhed på 15m — rapporteres, afgør intet: ATR uden brudhåndtering
-(``calculate_atr`` direkte på den kontinuerlige serie), og RTH med natten i true range.
+(``calculate_atr`` direkte på den kontinuerlige serie), RTH med natten i true range, og
+fordelingen uden rullevinduer (barer i de 5 handelsdage før hvert kontraktskift).
+
+Rullevinduet er tilføjet 2026-09-11 efter tjekket af dagsvolumen pr. kontrakt og FØR
+NQ-prisdata er hentet: ``.v.0`` skiftede først 1-2 handelsdage efter volumenskiftet ved
+rullerne i december 2025, marts 2026 og juni 2026.
 """
 from __future__ import annotations
 
@@ -187,6 +192,28 @@ def sqrt_sammenligning(hele: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+ROLL_WINDOW_DAYS = 5
+
+
+def rullevindue_mask(df: pd.DataFrame, dage: int = ROLL_WINDOW_DAYS) -> np.ndarray:
+    """True for barer i de ``dage`` Globex-handelsdage der går forud for et kontraktskift.
+
+    ``.v.0`` skifter først 1-2 handelsdage efter at den nye kontrakt har overtaget
+    volumenen (dagsvolumen pr. kontrakt ved de tre seneste ruller). I vinduet kan serien
+    ligge på den udløbende kontrakt. Dagene tælles i seriens egne handelsdage.
+    """
+    n = len(df)
+    if n < 2 or "instrument_id" not in df.columns:
+        return np.zeros(n, dtype=bool)
+    dag = sessions.globex_day(df.index)
+    iid = df["instrument_id"].to_numpy()
+    skift = np.flatnonzero(iid[1:] != iid[:-1]) + 1
+    unikke = pd.DatetimeIndex(dag.unique())
+    vindue = {unikke[q] for p in unikke.get_indexer(dag[skift])
+              for q in range(max(0, p - dage), p)}
+    return np.asarray(dag.isin(list(vindue)), dtype=bool)
+
+
 def foelsomhed_15m(series: dict[tuple[int, str], pd.DataFrame], niveau: float,
                    omk: float) -> pd.DataFrame:
     from data.indicators import calculate_atr
@@ -202,8 +229,12 @@ def foelsomhed_15m(series: dict[tuple[int, str], pd.DataFrame], niveau: float,
     varianter = [
         ("døgn, præregistreret", atr_pct(d, 15)),
         ("døgn, uden brudhåndtering (calculate_atr)", calculate_atr(d) / d["close"] * 100),
+        ("døgn, uden rullevinduer (5 handelsdage før skift)",
+         atr_pct(d, 15)[~rullevindue_mask(d)]),
         ("RTH, præregistreret", atr_pct(r, 15)),
         ("RTH, natten med i true range", atr_pct(r, 15, brud=kun_rulle)),
+        ("RTH, uden rullevinduer (5 handelsdage før skift)",
+         atr_pct(r, 15)[~rullevindue_mask(r)]),
     ]
     return pd.DataFrame([{"variant": v, **fordeling(a, niveau, omk)} for v, a in varianter])
 

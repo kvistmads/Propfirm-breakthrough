@@ -32,6 +32,9 @@ Spread    MNQ.v.0 bbo-1m. spread_ticks = (ask − bid) / 0,25 pr. snapshot. Et s
           ved t beskriver minuttet [t−1m, t) og markeres RTH/ETH derefter. Låste,
           krydsede og tomme sider tælles og udelades. Pr. session og pr. 30-min-blok
           (ET): n, gennemsnit, p10/p50/p90, andel på præcis 1 tick.
+          Følsomhed: samme tabel uden rullevinduer (de 5 handelsdage før hvert
+          kontraktskift). Tilføjet før udtrækket, da ``.v.0`` viste sig at skifte 1-2
+          handelsdage efter volumenskiftet — serien ligger dér på den udløbende kontrakt.
 """
 from __future__ import annotations
 
@@ -376,10 +379,16 @@ def main() -> None:
         except FileNotFoundError as e:
             print("spread springes over:", e)
         else:
+            from research.atr_fordeling import rullevindue_mask
+
             ps, pb, meta = spread(bbo)
-            res["spread"] = {"meta": meta, "pr_session": _records(ps)}
+            ps_u, _, meta_u = spread(bbo[~rullevindue_mask(bbo)])
+            res["spread"] = {"meta": meta, "pr_session": _records(ps),
+                             "uden_rullevinduer": {"meta": meta_u,
+                                                   "pr_session": _records(ps_u)}}
             pb.to_csv(OUT / "fase1_spread_mnq_pr_blok.csv")
             print(ps.to_string())
+            print("uden rullevinduer:\n" + ps_u.to_string())
 
     navn = "fase1_verifikation_yahoo.json" if args.kun_yahoo else "fase1_verifikation.json"
     (OUT / navn).write_text(json.dumps(res, indent=1, default=str, ensure_ascii=False),

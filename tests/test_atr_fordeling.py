@@ -116,3 +116,17 @@ def test_sqrt_comparison_is_zero_when_the_document_was_right():
     sq = af.sqrt_sammenligning(hele)
     assert sq["afvigelse_mod_5b_pct"].abs().max() == pytest.approx(0, abs=1e-9)
     assert sq["formafvigelse_pct"].abs().max() == pytest.approx(0, abs=1e-9)
+
+
+def test_roll_window_covers_the_trading_days_before_a_contract_change():
+    """Vinduet tælles i handelsdage — weekenden 22.-23. august springes over."""
+    dage = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21",
+            "2026-08-24", "2026-08-25", "2026-08-26"]
+    df = pd.concat([_bars(f"{d} 14:00", 30, instrument_id=1 if d < "2026-08-26" else 2,
+                          seed=i) for i, d in enumerate(dage)])
+    mask = af.rullevindue_mask(df)
+    dag = df.index.normalize().strftime("%Y-%m-%d")
+    i_vindue = pd.Series(mask, index=dag).groupby(level=0).all()
+    assert i_vindue.to_dict() == {
+        "2026-08-17": False, "2026-08-18": False, "2026-08-19": True, "2026-08-20": True,
+        "2026-08-21": True, "2026-08-24": True, "2026-08-25": True, "2026-08-26": False}
