@@ -1,0 +1,825 @@
+{
+ "koert_utc": "2026-09-11T12:55:00.446549+00:00",
+ "yahoo": {
+  "snapshot": "2026-09-10",
+  "k3": {
+   "1m": [
+    {
+     "aar": "hele",
+     "sessioner": 19,
+     "forventede_barer": 7410,
+     "manglende_barer": 6,
+     "sessioner_med_huller": 2,
+     "sessioner_uden_data": 0,
+     "mangler_pct": 0.0809716599
+    }
+   ],
+   "5m": [
+    {
+     "aar": "hele",
+     "sessioner": 50,
+     "forventede_barer": 3900,
+     "manglende_barer": 0,
+     "sessioner_med_huller": 0,
+     "sessioner_uden_data": 0,
+     "mangler_pct": 0.0
+    }
+   ],
+   "15m": [
+    {
+     "aar": "hele",
+     "sessioner": 50,
+     "forventede_barer": 1300,
+     "manglende_barer": 0,
+     "sessioner_med_huller": 0,
+     "sessioner_uden_data": 0,
+     "mangler_pct": 0.0
+    }
+   ]
+  },
+  "k4": [
+   {
+    "index": 0,
+    "timeframe": "1m",
+    "session": "RTH",
+    "barer": 7404,
+    "flade": 0,
+    "flade_pct": 0.0,
+    "holder": true
+   },
+   {
+    "index": 1,
+    "timeframe": "1m",
+    "session": "døgn",
+    "barer": 25387,
+    "flade": 6,
+    "flade_pct": 0.0236341435,
+    "holder": true
+   },
+   {
+    "index": 2,
+    "timeframe": "5m",
+    "session": "RTH",
+    "barer": 3900,
+    "flade": 0,
+    "flade_pct": 0.0,
+    "holder": true
+   },
+   {
+    "index": 3,
+    "timeframe": "5m",
+    "session": "døgn",
+    "barer": 13683,
+    "flade": 0,
+    "flade_pct": 0.0,
+    "holder": true
+   },
+   {
+    "index": 4,
+    "timeframe": "15m",
+    "session": "RTH",
+    "barer": 1300,
+    "flade": 0,
+    "flade_pct": 0.0,
+    "holder": true
+   },
+   {
+    "index": 5,
+    "timeframe": "15m",
+    "session": "døgn",
+    "barer": 4582,
+    "flade": 0,
+    "flade_pct": 0.0,
+    "holder": true
+   }
+  ]
+ },
+ "k1": {
+  "foerste_bar_utc": "2010-06-07 00:00:00+00:00",
+  "sidste_bar_utc": "2026-09-10 23:59:00+00:00",
+  "barer": 4818677,
+  "aar": 16.26,
+  "holder": true,
+  "stoerste_huller": [
+   {
+    "efter_bar_et": "2014-06-11 19:59:00-04:00",
+    "timer": 94.0
+   },
+   {
+    "efter_bar_et": "2011-12-30 17:25:00-05:00",
+    "timer": 84.6
+   },
+   {
+    "efter_bar_et": "2011-12-23 17:25:00-05:00",
+    "timer": 84.6
+   },
+   {
+    "efter_bar_et": "2014-09-22 19:56:00-04:00",
+    "timer": 83.4
+   },
+   {
+    "efter_bar_et": "2015-12-24 13:14:00-05:00",
+    "timer": 76.8
+   }
+  ]
+ },
+ "k3": [
+  {
+   "aar": "2010",
+   "sessioner": 146,
+   "forventede_barer": 56760,
+   "manglende_barer": 44850,
+   "sessioner_med_huller": 115,
+   "sessioner_uden_data": 115,
+   "mangler_pct": 79.0169133192
+  },
+  {
+   "aar": "2011",
+   "sessioner": 252,
+   "forventede_barer": 98100,
+   "manglende_barer": 71760,
+   "sessioner_med_huller": 184,
+   "sessioner_uden_data": 184,
+   "mangler_pct": 73.1498470948
+  },
+  {
+   "aar": "2012",
+   "sessioner": 250,
+   "forventede_barer": 96960,
+   "manglende_barer": 55594,
+   "sessioner_med_huller": 144,
+   "sessioner_uden_data": 143,
+   "mangler_pct": 57.3370462046
+  },
+  {
+   "aar": "2013",
+   "sessioner": 252,
+   "forventede_barer": 97740,
+   "manglende_barer": 15803,
+   "sessioner_med_huller": 42,
+   "sessioner_uden_data": 40,
+   "mangler_pct": 16.168405975
+  },
+  {
+   "aar": "2014",
+   "sessioner": 252,
+   "forventede_barer": 97740,
+   "manglende_barer": 17550,
+   "sessioner_med_huller": 45,
+   "sessioner_uden_data": 45,
+   "mangler_pct": 17.955801105
+  },
+  {
+   "aar": "2015",
+   "sessioner": 252,
+   "forventede_barer": 97920,
+   "manglende_barer": 10759,
+   "sessioner_med_huller": 28,
+   "sessioner_uden_data": 27,
+   "mangler_pct": 10.9875408497
+  },
+  {
+   "aar": "2016",
+   "sessioner": 252,
+   "forventede_barer": 98100,
+   "manglende_barer": 0,
+   "sessioner_med_huller": 0,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0
+  },
+  {
+   "aar": "2017",
+   "sessioner": 251,
+   "forventede_barer": 97530,
+   "manglende_barer": 0,
+   "sessioner_med_huller": 0,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0
+  },
+  {
+   "aar": "2018",
+   "sessioner": 251,
+   "forventede_barer": 97350,
+   "manglende_barer": 0,
+   "sessioner_med_huller": 0,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0
+  },
+  {
+   "aar": "2019",
+   "sessioner": 252,
+   "forventede_barer": 97740,
+   "manglende_barer": 0,
+   "sessioner_med_huller": 0,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0
+  },
+  {
+   "aar": "2020",
+   "sessioner": 253,
+   "forventede_barer": 98310,
+   "manglende_barer": 54,
+   "sessioner_med_huller": 4,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0549282881
+  },
+  {
+   "aar": "2021",
+   "sessioner": 252,
+   "forventede_barer": 98100,
+   "manglende_barer": 0,
+   "sessioner_med_huller": 0,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0
+  },
+  {
+   "aar": "2022",
+   "sessioner": 251,
+   "forventede_barer": 97710,
+   "manglende_barer": 0,
+   "sessioner_med_huller": 0,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0
+  },
+  {
+   "aar": "2023",
+   "sessioner": 250,
+   "forventede_barer": 97140,
+   "manglende_barer": 0,
+   "sessioner_med_huller": 0,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0
+  },
+  {
+   "aar": "2024",
+   "sessioner": 252,
+   "forventede_barer": 97740,
+   "manglende_barer": 0,
+   "sessioner_med_huller": 0,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0
+  },
+  {
+   "aar": "2025",
+   "sessioner": 250,
+   "forventede_barer": 96960,
+   "manglende_barer": 0,
+   "sessioner_med_huller": 0,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0
+  },
+  {
+   "aar": "2026",
+   "sessioner": 173,
+   "forventede_barer": 67470,
+   "manglende_barer": 0,
+   "sessioner_med_huller": 0,
+   "sessioner_uden_data": 0,
+   "mangler_pct": 0.0
+  },
+  {
+   "aar": "hele",
+   "sessioner": 4091,
+   "forventede_barer": 1589370,
+   "manglende_barer": 216370,
+   "sessioner_med_huller": 562,
+   "sessioner_uden_data": 554,
+   "mangler_pct": 13.6135701567
+  }
+ ],
+ "k4": [
+  {
+   "index": 0,
+   "timeframe": "1m",
+   "session": "RTH",
+   "barer": 1373000,
+   "flade": 329,
+   "flade_pct": 0.0239621267,
+   "holder": true
+  },
+  {
+   "index": 1,
+   "timeframe": "1m",
+   "session": "døgn",
+   "barer": 4818677,
+   "flade": 260568,
+   "flade_pct": 5.4074593504,
+   "holder": false
+  },
+  {
+   "index": 2,
+   "timeframe": "3m",
+   "session": "RTH",
+   "barer": 457673,
+   "flade": 2,
+   "flade_pct": 0.0004369932,
+   "holder": true
+  },
+  {
+   "index": 3,
+   "timeframe": "3m",
+   "session": "døgn",
+   "barer": 1646580,
+   "flade": 27874,
+   "flade_pct": 1.6928421334,
+   "holder": false
+  },
+  {
+   "index": 4,
+   "timeframe": "5m",
+   "session": "RTH",
+   "barer": 274606,
+   "flade": 1,
+   "flade_pct": 0.0003641581,
+   "holder": true
+  },
+  {
+   "index": 5,
+   "timeframe": "5m",
+   "session": "døgn",
+   "barer": 991784,
+   "flade": 7013,
+   "flade_pct": 0.7071096126,
+   "holder": true
+  },
+  {
+   "index": 6,
+   "timeframe": "15m",
+   "session": "RTH",
+   "barer": 91538,
+   "flade": 1,
+   "flade_pct": 0.0010924425,
+   "holder": true
+  },
+  {
+   "index": 7,
+   "timeframe": "15m",
+   "session": "døgn",
+   "barer": 332395,
+   "flade": 333,
+   "flade_pct": 0.1001820124,
+   "holder": true
+  }
+ ],
+ "k4_1m_doegn_pr_aar_pct": {
+  "2010": 28.191,
+  "2011": 21.216,
+  "2012": 20.316,
+  "2013": 18.432,
+  "2014": 16.604,
+  "2015": 11.409,
+  "2016": 9.275,
+  "2017": 10.056,
+  "2018": 1.341,
+  "2019": 0.647,
+  "2020": 0.386,
+  "2021": 0.161,
+  "2022": 0.04,
+  "2023": 0.113,
+  "2024": 0.116,
+  "2025": 0.074,
+  "2026": 0.047
+ },
+ "k3_bestaaede_aar": [
+  2016,
+  2017,
+  2018,
+  2019,
+  2020,
+  2021,
+  2022,
+  2023,
+  2024,
+  2025,
+  2026
+ ],
+ "k1_k3_aar": {
+  "foerste_bar_utc": "2016-01-03 23:00:00+00:00",
+  "sidste_bar_utc": "2026-09-10 23:59:00+00:00",
+  "barer": 3741289,
+  "aar": 10.69,
+  "holder": true,
+  "stoerste_huller": [
+   {
+    "efter_bar_et": "2020-12-24 13:14:00-05:00",
+    "timer": 76.8
+   },
+   {
+    "efter_bar_et": "2021-12-23 16:59:00-05:00",
+    "timer": 73.0
+   },
+   {
+    "efter_bar_et": "2022-12-30 16:59:00-05:00",
+    "timer": 73.0
+   },
+   {
+    "efter_bar_et": "2020-04-09 16:59:00-04:00",
+    "timer": 73.0
+   },
+   {
+    "efter_bar_et": "2022-12-23 16:59:00-05:00",
+    "timer": 73.0
+   }
+  ]
+ },
+ "k4_k3_aar": [
+  {
+   "index": 0,
+   "timeframe": "1m",
+   "session": "RTH",
+   "barer": 1044096,
+   "flade": 26,
+   "flade_pct": 0.0024901925,
+   "holder": true
+  },
+  {
+   "index": 1,
+   "timeframe": "1m",
+   "session": "døgn",
+   "barer": 3741289,
+   "flade": 75717,
+   "flade_pct": 2.0238212017,
+   "holder": false
+  },
+  {
+   "index": 2,
+   "timeframe": "3m",
+   "session": "RTH",
+   "barer": 348036,
+   "flade": 1,
+   "flade_pct": 0.0002873266,
+   "holder": true
+  },
+  {
+   "index": 3,
+   "timeframe": "3m",
+   "session": "døgn",
+   "barer": 1254602,
+   "flade": 4531,
+   "flade_pct": 0.3611503887,
+   "holder": true
+  },
+  {
+   "index": 4,
+   "timeframe": "5m",
+   "session": "RTH",
+   "barer": 208823,
+   "flade": 1,
+   "flade_pct": 0.0004788745,
+   "holder": true
+  },
+  {
+   "index": 5,
+   "timeframe": "5m",
+   "session": "døgn",
+   "barer": 753153,
+   "flade": 1009,
+   "flade_pct": 0.1339701229,
+   "holder": true
+  },
+  {
+   "index": 6,
+   "timeframe": "15m",
+   "session": "RTH",
+   "barer": 69610,
+   "flade": 1,
+   "flade_pct": 0.0014365752,
+   "holder": true
+  },
+  {
+   "index": 7,
+   "timeframe": "15m",
+   "session": "døgn",
+   "barer": 251176,
+   "flade": 180,
+   "flade_pct": 0.0716628977,
+   "holder": true
+  }
+ ],
+ "k2": [
+  {
+   "session": "døgn",
+   "dage_i_overlap": 50,
+   "dage_brugt": 48,
+   "median_abs_afv_pct": 0.0,
+   "p90_abs_afv_pct": 0.0,
+   "max_abs_afv_pct": 2.933088909257562,
+   "median_range_databento_point": 500.75,
+   "holder": true
+  },
+  {
+   "session": "RTH",
+   "dage_i_overlap": 48,
+   "dage_brugt": 48,
+   "median_abs_afv_pct": 0.0,
+   "p90_abs_afv_pct": 0.0,
+   "max_abs_afv_pct": 0.0,
+   "median_range_databento_point": 363.125,
+   "holder": true
+  }
+ ],
+ "bar_for_bar_15m": {
+  "dag": "2026-08-26",
+  "timeframe": "15m",
+  "barer_yahoo": 26,
+  "barer_databento": 26,
+  "barer_begge": 26,
+  "niveauforskel_ticks_median": 0.0,
+  "median_abs_diff_ticks_efter_niveau": {
+   "open": 0.0,
+   "high": 0.0,
+   "low": 0.0,
+   "close": 0.0
+  },
+  "range_yahoo_point": 211.5,
+  "range_databento_point": 211.5
+ },
+ "bar_for_bar_1m": {
+  "dag": "2026-08-26",
+  "timeframe": "1m",
+  "barer_yahoo": 390,
+  "barer_databento": 390,
+  "barer_begge": 390,
+  "niveauforskel_ticks_median": 0.0,
+  "median_abs_diff_ticks_efter_niveau": {
+   "open": 0.0,
+   "high": 0.0,
+   "low": 0.0,
+   "close": 0.0
+  },
+  "range_yahoo_point": 211.5,
+  "range_databento_point": 211.5
+ },
+ "forskydning": {
+  "top_min": 0,
+  "spearman_top": 0.9985709124623413,
+  "spearman_0": 0.9985709124623413
+ },
+ "atr_60d_15m": {
+  "yahoo": {
+   "RTH": 0.22671279178594406,
+   "døgn": 0.16539508370668995
+  },
+  "databento": {
+   "RTH": 0.22671279178594406,
+   "døgn": 0.16254848986177367
+  }
+ },
+ "ruller": {
+  "antal": 65,
+  "pr_aar": {
+   "2010": 3,
+   "2011": 4,
+   "2012": 4,
+   "2013": 4,
+   "2014": 4,
+   "2015": 4,
+   "2016": 4,
+   "2017": 4,
+   "2018": 4,
+   "2019": 4,
+   "2020": 4,
+   "2021": 4,
+   "2022": 4,
+   "2023": 4,
+   "2024": 4,
+   "2025": 4,
+   "2026": 2
+  },
+  "median_abs_spring_ticks": 32.0
+ },
+ "uforklarede_spring": {
+  "pr_aar": [
+   {
+    "time": 2010,
+    "barer": 49800,
+    "spring": 3671,
+    "spring_pr_100k_barer": 7371.4859437751
+   },
+   {
+    "time": 2011,
+    "barer": 106728,
+    "spring": 6160,
+    "spring_pr_100k_barer": 5771.6812832621
+   },
+   {
+    "time": 2012,
+    "barer": 145070,
+    "spring": 7609,
+    "spring_pr_100k_barer": 5245.0541118081
+   },
+   {
+    "time": 2013,
+    "barer": 246544,
+    "spring": 12536,
+    "spring_pr_100k_barer": 5084.6907651373
+   },
+   {
+    "time": 2014,
+    "barer": 247768,
+    "spring": 11807,
+    "spring_pr_100k_barer": 4765.3450001614
+   },
+   {
+    "time": 2015,
+    "barer": 281478,
+    "spring": 8527,
+    "spring_pr_100k_barer": 3029.3664158478
+   },
+   {
+    "time": 2016,
+    "barer": 336245,
+    "spring": 8825,
+    "spring_pr_100k_barer": 2624.5743431129
+   },
+   {
+    "time": 2017,
+    "barer": 341471,
+    "spring": 6994,
+    "spring_pr_100k_barer": 2048.1973579015
+   },
+   {
+    "time": 2018,
+    "barer": 349178,
+    "spring": 560,
+    "spring_pr_100k_barer": 160.3766560322
+   },
+   {
+    "time": 2019,
+    "barer": 349846,
+    "spring": 192,
+    "spring_pr_100k_barer": 54.881290625
+   },
+   {
+    "time": 2020,
+    "barer": 349672,
+    "spring": 65,
+    "spring_pr_100k_barer": 18.5888489785
+   },
+   {
+    "time": 2021,
+    "barer": 353393,
+    "spring": 95,
+    "spring_pr_100k_barer": 26.8822529026
+   },
+   {
+    "time": 2022,
+    "barer": 354112,
+    "spring": 26,
+    "spring_pr_100k_barer": 7.3423097777
+   },
+   {
+    "time": 2023,
+    "barer": 353358,
+    "spring": 46,
+    "spring_pr_100k_barer": 13.0179591236
+   },
+   {
+    "time": 2024,
+    "barer": 354954,
+    "spring": 84,
+    "spring_pr_100k_barer": 23.6650382867
+   },
+   {
+    "time": 2025,
+    "barer": 352509,
+    "spring": 131,
+    "spring_pr_100k_barer": 37.162171746
+   },
+   {
+    "time": 2026,
+    "barer": 246551,
+    "spring": 83,
+    "spring_pr_100k_barer": 33.6644345389
+   }
+  ],
+  "stoerste": [
+   {
+    "time": "2020-03-16T13:30:00.000Z",
+    "tid_et": "2020-03-16T13:30:00.000Z",
+    "gap_ticks": 639.0,
+    "atr_ticks": 0.002383128,
+    "gap_i_atr": 268134.9915099418
+   },
+   {
+    "time": "2020-03-09T13:30:00.000Z",
+    "tid_et": "2020-03-09T13:30:00.000Z",
+    "gap_ticks": 481.0,
+    "atr_ticks": 0.0060201922,
+    "gap_i_atr": 79897.7819254679
+   },
+   {
+    "time": "2020-03-18T13:30:00.000Z",
+    "tid_et": "2020-03-18T13:30:00.000Z",
+    "gap_ticks": 361.0,
+    "atr_ticks": 0.0320917186,
+    "gap_i_atr": 11249.008029517
+   },
+   {
+    "time": "2020-03-13T13:30:00.000Z",
+    "tid_et": "2020-03-13T13:30:00.000Z",
+    "gap_ticks": 269.0,
+    "atr_ticks": 0.111546546,
+    "gap_i_atr": 2411.549344688
+   },
+   {
+    "time": "2020-03-12T13:30:00.000Z",
+    "tid_et": "2020-03-12T13:30:00.000Z",
+    "gap_ticks": 384.0,
+    "atr_ticks": 0.4186458138,
+    "gap_i_atr": 917.2431381022
+   },
+   {
+    "time": "2015-08-24T13:30:00.000Z",
+    "tid_et": "2015-08-24T13:30:00.000Z",
+    "gap_ticks": 216.0,
+    "atr_ticks": 0.5074340086,
+    "gap_i_atr": 425.6711145198
+   },
+   {
+    "time": "2012-07-18T23:59:00.000Z",
+    "tid_et": "2012-07-18T23:59:00.000Z",
+    "gap_ticks": 171.0,
+    "atr_ticks": 0.7296724171,
+    "gap_i_atr": 234.3517391965
+   },
+   {
+    "time": "2014-01-14T23:59:00.000Z",
+    "tid_et": "2014-01-14T23:59:00.000Z",
+    "gap_ticks": 259.0,
+    "atr_ticks": 1.1289114378,
+    "gap_i_atr": 229.4245512319
+   },
+   {
+    "time": "2015-09-15T23:59:00.000Z",
+    "tid_et": "2015-09-15T23:59:00.000Z",
+    "gap_ticks": 195.0,
+    "atr_ticks": 1.0305678846,
+    "gap_i_atr": 189.2160651581
+   },
+   {
+    "time": "2013-02-20T23:59:00.000Z",
+    "tid_et": "2013-02-20T23:59:00.000Z",
+    "gap_ticks": 184.0,
+    "atr_ticks": 1.0066965531,
+    "gap_i_atr": 182.7760306144
+   }
+  ]
+ },
+ "spread": {
+  "meta": {
+   "snapshots": 179155,
+   "udeladt_laast_krydset_tom": 953,
+   "foerste_et": "2026-03-12 20:00:00-04:00",
+   "sidste_et": "2026-09-10 19:59:00-04:00"
+  },
+  "pr_session": [
+   {
+    "session": "ETH",
+    "n": 129455.0,
+    "gns_ticks": 2.6582673516,
+    "p10_ticks": 2.0,
+    "p50_ticks": 2.0,
+    "p90_ticks": 3.0,
+    "andel_1_tick_pct": 3.2188791472
+   },
+   {
+    "session": "RTH",
+    "n": 48747.0,
+    "gns_ticks": 1.8706997354,
+    "p10_ticks": 1.0,
+    "p50_ticks": 2.0,
+    "p90_ticks": 2.0,
+    "andel_1_tick_pct": 26.3195683837
+   }
+  ],
+  "uden_rullevinduer": {
+   "meta": {
+    "snapshots": 168172,
+    "udeladt_laast_krydset_tom": 909,
+    "foerste_et": "2026-03-18 18:00:00-04:00",
+    "sidste_et": "2026-09-10 19:59:00-04:00"
+   },
+   "pr_session": [
+    {
+     "session": "ETH",
+     "n": 121636.0,
+     "gns_ticks": 2.5786444803,
+     "p10_ticks": 2.0,
+     "p50_ticks": 2.0,
+     "p90_ticks": 3.0,
+     "andel_1_tick_pct": 3.3863329935
+    },
+    {
+     "session": "RTH",
+     "n": 45627.0,
+     "gns_ticks": 1.7912420277,
+     "p10_ticks": 1.0,
+     "p50_ticks": 2.0,
+     "p90_ticks": 2.0,
+     "andel_1_tick_pct": 27.8782299954
+    }
+   ]
+  }
+ }
+}
