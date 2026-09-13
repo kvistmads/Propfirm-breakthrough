@@ -116,3 +116,68 @@ def test_sqrt_comparison_is_zero_when_the_document_was_right():
     sq = af.sqrt_sammenligning(hele)
     assert sq["afvigelse_mod_5b_pct"].abs().max() == pytest.approx(0, abs=1e-9)
     assert sq["formafvigelse_pct"].abs().max() == pytest.approx(0, abs=1e-9)
+
+
+def test_roll_window_covers_the_trading_days_before_a_contract_change():
+    """Vinduet tælles i handelsdage — weekenden 22.-23. august springes over."""
+    dage = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21",
+            "2026-08-24", "2026-08-25", "2026-08-26"]
+    df = pd.concat([_bars(f"{d} 14:00", 30, instrument_id=1 if d < "2026-08-26" else 2,
+                          seed=i) for i, d in enumerate(dage)])
+    mask = af.rullevindue_mask(df)
+    dag = df.index.normalize().strftime("%Y-%m-%d")
+    i_vindue = pd.Series(mask, index=dag).groupby(level=0).all()
+    assert i_vindue.to_dict() == {
+        "2026-08-17": False, "2026-08-18": False, "2026-08-19": True, "2026-08-20": True,
+        "2026-08-21": True, "2026-08-24": True, "2026-08-25": True, "2026-08-26": False}
+
+
+# ---------------------------------------------------------------------------
+# Rapportering: K3-periode, side om side og §5 genberegnet
+# ---------------------------------------------------------------------------
+
+def _periode_tab(scale: float = 1.0) -> pd.DataFrame:
+    """ATR præcis som §5b antog: 0,168% på 15m, kvadratrods-skaleret, ens i begge sessioner."""
+    return pd.DataFrame([{"timeframe": f"{m}m", "session": s,
+                          **{f"ATR_pct_p{p}": 0.168 * math.sqrt(m / 15) * scale
+                             for p in (10, 50, 90)}}
+                         for s in af.SESSIONS for m in (1, 3, 5, 15)])
+
+
+def test_section_5b_recalculation_reproduces_the_document_when_atr_is_unchanged():
+    r, o = af.paragraf5b(_periode_tab(), omk=2.47)
+    r, o = r.set_index("timeframe"), o.set_index("timeframe")
+    assert r.loc["15m", "risiko_pct_af_MLL_netto_5b"] == pytest.approx(5.10, abs=0.01)
+    assert r.loc["1m", "risiko_pct_af_MLL_netto_5b"] == pytest.approx(1.41, abs=0.01)
+    assert r.loc["15m", "risiko_pct_af_MLL_netto_p90_RTH"] == pytest.approx(5.10, abs=0.01)
+    assert o.loc["15m", "omk_R_netto_p50_døgn"] == pytest.approx(0.0248, abs=1e-4)
+    assert o.loc["1m", "be_WR_pct_netto_5b"] == pytest.approx(36.54, abs=0.01)
+
+
+def test_section_5a_grid_reproduces_the_document_and_scales_with_atr():
+    g = af.paragraf5a(_periode_tab(), omk=2.47).set_index(["kontrakter", "stop_ATR"])
+    assert g.loc[(1, 1.0), "risiko_pct_af_MLL_netto_5a"] == pytest.approx(5.10, abs=0.01)
+    assert g.loc[(3, 0.5), "risiko_pct_af_MLL_netto_5a"] == pytest.approx(7.84, abs=0.01)
+    dobbelt = af.paragraf5a(_periode_tab(2.0), omk=2.47).set_index(["kontrakter", "stop_ATR"])
+    assert dobbelt.loc[(1, 1.0), "risiko_pct_af_MLL_netto_p90_RTH"] == pytest.approx(
+        (2 * 99.5887 + 2.47) / 20, abs=0.01)
+
+
+def test_k3_label_names_the_years():
+    assert af.k3_etiket(list(range(2016, 2027))) == "K3 2016-2026"
+    assert af.k3_etiket([2026]) == "K3 2026"
+    assert af.k3_etiket([2016, 2018]) == "K3 2016,2018"
+
+
+def test_side_by_side_puts_rth_next_to_the_full_day():
+    t = af.side_om_side(_periode_tab(), ["ATR_pct_p50"])
+    assert list(t.columns) == ["timeframe", "ATR_pct_p50_RTH", "ATR_pct_p50_døgn"]
+    assert len(t) == 4
+
+
+def test_table_adds_a_pooled_k3_period_after_the_full_history():
+    df = pd.concat([_bars("2025-12-31 14:00", 100), _bars("2026-01-02 14:30", 100, seed=8)])
+    tab = af.tabel({(1, af.DOEGN): df}, niveau=30_000.0, omk=2.47, k3=[2026])
+    assert tab["periode"].tolist() == ["hele", "K3 2026", "2025", "2026"]
+    t = tab.set_index("periode")
+    assert t.loc["K3 2026", "n_barer"] == t.loc["2026", "n_barer"]

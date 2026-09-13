@@ -2,18 +2,20 @@
 
 Betingelser fra Mads (2026-09-11), håndhævet her:
 
-1. **Maks $25 af den gratis kredit i fase 1.** Prisen estimeres med et gratis
-   metadata-kald FØR hvert udtræk, og et udtræk der ville bringe summen over budgettet
-   afvises før der hentes noget.
+1. **Maks $40 af den gratis kredit i fase 1** — hævet fra $25 samme dag, så spread kan
+   måles i stedet for at blive skønnet. Prisen estimeres med et gratis metadata-kald
+   FØR hvert udtræk, og et udtræk der ville bringe summen over budgettet afvises før der
+   hentes noget.
 2. **Kun 1m OHLCV hentes.** 3m/5m/15m aggregeres lokalt i ``data.resample``, så alle
    timeframes deler bar-grænser pr. konstruktion.
-3. **NQ til ATR, MNQ til spread.**
+3. **NQ til ATR, MNQ til spread.** MNQ blev noteret 2019-05-06; der anmodes aldrig om
+   MNQ-data før den dato.
 4. **Rullen skal kunne ses.** Kontinuerlig serie ``<ROD>.v.0`` (kontrakten med størst
    volumen), og ``instrument_id`` bevares på hver bar, så et rullespring kan skelnes
    fra et prisspring.
 
-Udtræk bogføres i ``data/cache/databento/udtraek.jsonl``. Nøglen læses fra miljøet
-eller ``.env`` og skrives aldrig ud.
+Udtræk bogføres i ``data/cache/databento/udtraek.jsonl``. Nøglen læses fra ``.env`` ved
+hvert klientkald — filen vinder over en ældre værdi i miljøet — og skrives aldrig ud.
 """
 from __future__ import annotations
 
@@ -27,8 +29,11 @@ from data.cache_parquet import CACHE_ROOT, ROOT, read_ohlcv, write_parquet
 from data.ohlcv import OHLCVValidationError, validate_ohlcv
 
 DATASET = "GLBX.MDP3"
-BUDGET_USD = 25.0
+BUDGET_USD = 40.0
 LEDGER = CACHE_ROOT / "databento" / "udtraek.jsonl"
+
+# CME: første handelsdag. Der findes ingen data før, og der må ikke bedes om dem.
+NOTERING = {"MNQ": "2019-05-06"}
 
 
 class BudgetOverskredet(RuntimeError):
@@ -36,10 +41,11 @@ class BudgetOverskredet(RuntimeError):
 
 
 def client():
-    """Historical-klient. Nøglen hentes fra DATABENTO_API_KEY (miljø eller .env)."""
+    """Historical-klient. Nøglen hentes fra DATABENTO_API_KEY i .env (eller miljøet)."""
     from dotenv import load_dotenv
 
-    load_dotenv(ROOT / ".env", override=False)
+    # override=True: nøglen kan være rulleret mens en ældre værdi ligger i miljøet.
+    load_dotenv(ROOT / ".env", override=True)
     if not os.environ.get("DATABENTO_API_KEY"):
         raise RuntimeError("DATABENTO_API_KEY mangler — læg den i .env i repo-roden")
     import databento as db
@@ -48,7 +54,7 @@ def client():
 
 
 # ---------------------------------------------------------------------------
-# Budget
+# Budget og notering
 # ---------------------------------------------------------------------------
 
 def spent_usd(ledger: Path = LEDGER) -> float:
@@ -63,6 +69,18 @@ def check_budget(estimate_usd: float, spent: float, budget: float = BUDGET_USD) 
     if spent + estimate_usd > budget + 1e-9:
         raise BudgetOverskredet(f"udtræk ${estimate_usd:.2f} + brugt ${spent:.2f} "
                                 f"> budget ${budget:.2f}")
+
+
+def check_listing(symbol: str, start: str) -> None:
+    """Afvis en anmodning der begynder før kontraktens notering."""
+    sym = symbol.upper()
+    for rod, noteret in NOTERING.items():
+        if sym.startswith(rod):
+            s = pd.Timestamp(start)
+            s = s.tz_convert(None) if s.tz is not None else s
+            if s < pd.Timestamp(noteret):
+                raise ValueError(f"{rod} blev noteret {noteret} — der findes ingen data "
+                                 f"før; start {start} afvises")
 
 
 def _book(ledger: Path, entry: dict) -> None:
@@ -91,7 +109,7 @@ def from_ohlcv(raw: pd.DataFrame | None) -> pd.DataFrame:
 
 
 def from_bbo(raw: pd.DataFrame | None) -> pd.DataFrame:
-    """``DBNStore.to_df()`` for bbo-1m → bid/ask pr. minut. Index er ts_recv (UTC)."""
+    """``DBNStore.to_df()`` for bbo-1s/-1m → bid/ask pr. interval. Index er ts_recv (UTC)."""
     if raw is None or len(raw) == 0:
         raise OHLCVValidationError("tomt svar [databento bbo]")
     need = ("bid_px_00", "ask_px_00", "bid_sz_00", "ask_sz_00", "instrument_id")
@@ -112,7 +130,7 @@ def from_bbo(raw: pd.DataFrame | None) -> pd.DataFrame:
     return df
 
 
-CONVERT = {"ohlcv-1m": from_ohlcv, "bbo-1m": from_bbo}
+CONVERT = {"ohlcv-1m": from_ohlcv, "bbo-1m": from_bbo, "bbo-1s": from_bbo}
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +161,7 @@ def estimate_cost(cli, symbol: str, schema: str, start: str, end: str) -> float:
 def plan(cli, symbol: str, schema: str, start: str, end: str,
          cache_root: Path = CACHE_ROOT) -> pd.DataFrame:
     """Én række pr. årsbid: er den cachet, og hvad koster den (gratis metadata-kald)."""
+    check_listing(symbol, start)
     rows = []
     for s, e in year_chunks(start, end):
         p = chunk_path(cache_root, symbol, schema, s, e)
@@ -186,4 +205,4 @@ def pull(cli, symbol: str, schema: str, start: str, end: str, *, execute: bool,
     samlet = pd.concat(frames)
     if schema.startswith("ohlcv"):
         validate_ohlcv(samlet, f"databento {symbol} {schema} samlet")
-    return plan, samlet
+    return p, samlet
