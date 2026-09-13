@@ -299,3 +299,50 @@ class TestSessionstabel:
         row = report.session_row("BTC/USDT", both)
         assert row["symbol"] == "BTC/USDT" and row["n"] == 1
         assert row["total_pnl_pct"] == 2.0 and row["total_pnl_pct_net"] == 1.6
+
+
+class TestRundturDekomponering:
+    """Fase 2, PRD 4.1: omkostningen står led for led, og slippage er den realiserede
+    middelværdi — ikke fordelingens parameter."""
+
+    def test_afskaering_loefter_middelvaerdien_til_0_5417(self):
+        assert costs.slippage_realiseret(0.5, 0.5) == pytest.approx(0.54166, abs=1e-5)
+        assert costs.slippage_realiseret(0.5, 0.0) == 0.5
+
+    def test_konfigurationen_erklaerer_det_koden_realiserer(self):
+        p = costs._asset_costs(CONFIG, "MNQ")
+        realiseret = costs.slippage_realiseret(p["slippage_mean_ticks"], p["slippage_std_ticks"])
+        assert p["slippage_realiseret_ticks_pr_side"] == pytest.approx(realiseret, abs=5e-5)
+
+    def test_apply_costs_traekker_i_gennemsnit_den_realiserede_slippage(self):
+        """Holder dekomponeringen op mod det apply_costs faktisk gør, handel for handel."""
+        import numpy as np
+
+        rng = np.random.default_rng(20260913)
+        pris, n = 20_000.0, 40_000
+        t = _trade(symbol="MNQ", entry=pris, exit_=pris)
+        ticks = [costs.apply_costs(t, CONFIG, rng)["cost_slippage_pct"] / 100 * pris / 0.25
+                 for _ in range(n)]
+        gns_pr_side = float(np.mean(ticks)) / 2
+        assert gns_pr_side == pytest.approx(costs.slippage_realiseret(0.5, 0.5), abs=0.005)
+        assert min(ticks) >= 0.0
+
+    def test_rth_og_uden_for_rth(self):
+        rth = costs.rundtur_dekomponering(CONFIG, "MNQ", "RTH")
+        eth = costs.rundtur_dekomponering(CONFIG, "MNQ", "ETH")
+        assert (rth.kommission_usd, rth.spread_ticks) == (1.22, 1.73)
+        assert rth.spread_usd == pytest.approx(0.865)
+        assert rth.slippage_usd == pytest.approx(0.5417, abs=5e-5)
+        assert rth.i_alt_usd == pytest.approx(2.627, abs=5e-4)
+        assert eth.spread_ticks == 2.17
+        assert eth.i_alt_usd == pytest.approx(2.847, abs=5e-4)
+
+    def test_med_det_gamle_spreadskoen_giver_regnestykket_fase_1s_kodetal(self):
+        """PRD 4.1: 1,50 tick → $2,512, det fase 1-sessionen målte i koden."""
+        r = costs.rundtur_dekomponering(CONFIG, "MNQ", "RTH", spread_ticks=1.50)
+        assert r.i_alt_usd == pytest.approx(2.512, abs=5e-4)
+
+    def test_overskrivning_af_slippage_til_foelsomhed(self):
+        r = costs.rundtur_dekomponering(CONFIG, "MNQ", "RTH", slippage_ticks_pr_side=1.0)
+        assert r.slippage_usd == 1.0
+        assert r.i_alt_usd == pytest.approx(1.22 + 0.865 + 1.0)

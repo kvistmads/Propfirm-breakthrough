@@ -37,8 +37,11 @@ def _bars(start_utc: str, n: int, minutes: int = 1, price: float = 29_000.0,
 
 
 def test_cost_is_derived_from_config_and_matches_the_document():
-    assert af.omk_usd_rundtur(price=29_639.50) == pytest.approx(2.47, abs=1e-9)
-    assert af.omk_usd_rundtur(price=15_000.0) == pytest.approx(2.47, abs=1e-9)
+    """Fase 2 (PRD 4.1): målt RTH-spread 1,73 tick og realiseret slippage → $2,627.
+
+    Fase 1 regnede $2,47 (spread 1,50, slippage-parameteren 0,50)."""
+    assert af.omk_usd_rundtur(price=29_639.50) == pytest.approx(2.627, abs=5e-4)
+    assert af.omk_usd_rundtur(price=15_000.0) == af.omk_usd_rundtur(price=29_639.50)
 
 
 def test_without_breaks_atr_equals_the_indicator_apparatus():
