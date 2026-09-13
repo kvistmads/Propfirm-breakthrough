@@ -1,14 +1,17 @@
 """Ruinmodel v2 for Topstep $50K Trading Combine — B6: sizing på det målte grundlag.
 
-    .venv/bin/python -m research.mll_ruin k1        K1-regressionstjekket
-    .venv/bin/python -m research.mll_ruin gitter    gitteret, kræver at K1 holdt på denne kode
+    .venv/bin/python -m research.mll_ruin k1        K1 mod v1-gitteret fra 2026-09-09 (konsistens 0,50)
+    .venv/bin/python -m research.mll_ruin k1v2      K1 mod v2-kørslen (konsistens 0,50, 200 dage)
+    .venv/bin/python -m research.mll_ruin gitter    tillægskørslen: konsistens 0,55, 200 dage, og 500
+                                                    dage som diagnose. Kræver at k1v2 holdt på denne kode
 
 Svarer på: hvor stor må en handel være, når Maximum Loss Limit er $2.000 og profitmålet
 $3.000, og hvordan fordeler udfaldene sig mellem BESTÅET, RUIN og UAFGJORT (horisonten
 nået)? Opgaven står i ``PRD_FASE2_RUINMODEL.md``; kriterierne K1-K5 i dens afsnit 3, og
-valgreglen, vinduerne og operationaliseringen i ``research/prereg/fase2_valgregel.md``.
+valgreglen, vinduerne, låsekriteriet og operationaliseringen i
+``research/prereg/fase2_valgregel.md`` (inkl. tillægget T1-T7).
 
-Mekanikken er 1:1 med Topsteps egen (verificeret 2026-09-09 fra help.topstep.com):
+Mekanikken er 1:1 med Topsteps egen (``REGLER_VERIFICERET.md`` §3, verificeret 2026-09-13):
 
   start            saldo $50.000, MLL $48.000
   MLL trailer      på DAGSSLUTsaldo: mll = min(50.000, max(mll, saldo - 2.000))
@@ -16,9 +19,11 @@ Mekanikken er 1:1 med Topsteps egen (verificeret 2026-09-09 fra help.topstep.com
   MLL brydes       på net P&L i REALTID inkl. urealiseret -> øjeblikkelig likvidering
   DLL              $1.000 (valgfri, slået TIL): dagen lukkes, kontoen lever
   profitmål        $3.000
-  konsistens       bedste dag skal under 50% af profitmålet, ellers HÆVES målet
-                   -> bestået kræver profit >= max(3.000, 2 x bedste dag)
+  konsistens       55%: "Best Day ÷ 0.55 = Total Profit Needed", ellers HÆVES målet
+                   -> bestået kræver profit >= max(3.000, bedste_dag / 0,55)
+                   v1 og v2 regnede fejlagtigt med 0,50 (bedste dag <= $1.500 i stedet for $1.650)
   min. dage        2
+  tidsgrænse       ingen. Horisonten er en modelparameter: uafgjort = ikke bestået ENDNU
 
 Trailet er dagsslut, bruddet er realtid. Trailet regnes på en flad konto: ingen position
 er åben ved dagsgrænsen. **Det var en antagelse (A) i v1 og er nu en regel (V):** Topstep
@@ -86,13 +91,16 @@ MLL_LOCK = 50_000.0
 PROFIT_TARGET = 3_000.0
 DLL = 1_000.0
 MIN_DAYS = 2
-CONSISTENCY_FRAC = 0.50
+# REGLER_VERIFICERET.md §3: "Best Day ÷ 0.55 = Total Profit Needed". v1 og v2 brugte 0,50.
+CONSISTENCY_FRAC = 0.55
+KONSISTENS_V2 = 0.50
 
 MNQ_MULTIPLIER = 2.0
 RR = 2.0
 
 MAX_TRADES_PER_DAY = 3
-MAX_DAYS = 200
+MAX_DAYS = 200               # modelparameter, ikke regel: Combine har ingen tidsgrænse
+HORISONT_DIAGNOSE = 500
 N_PATHS = 20_000
 SEED = 20260909
 
@@ -129,6 +137,17 @@ UD_ATR = OUT / "mll_ruin_v2_atr.csv"
 UD_MD = OUT / "mll_ruin_v2.md"
 UD_KRITERIER = OUT / "mll_ruin_v2_kriterier.json"
 
+# Tillægskørslen, konsistens 0,55 (prereg T1-T7). v2's filer er referencen for K1 mod v2.
+V2_REFERENCE = UD_CSV
+K1V2_UD = OUT / "mll_ruin_v2_k55_k1.csv"
+K1V2_RESUME = OUT / "mll_ruin_v2_k55_k1.json"
+T_CSV = OUT / "mll_ruin_v2_k55.csv"
+T_ATR = OUT / "mll_ruin_v2_k55_atr.csv"
+T_MD = OUT / "mll_ruin_v2_k55.md"
+T_KRITERIER = OUT / "mll_ruin_v2_k55_kriterier.json"
+LAAS_CELLE = ("15m", 0.50)
+CENSUR_FLAG_PCT = 50.0
+
 
 # ---------------------------------------------------------------------------
 # Modellen
@@ -152,7 +171,8 @@ def seed_v1(contracts: int, stop_atr: float, wr: float) -> int:
 
 
 def simulate(n_paths: int, wr: float, stop_atr: float, contracts: int, pessimistisk: bool,
-             omk_usd: float, atr_pct, nq: float, seed: int) -> dict:
+             omk_usd: float, atr_pct, nq: float, seed: int,
+             konsistens: float = CONSISTENCY_FRAC, max_days: int = MAX_DAYS) -> dict:
     """Én kørsel. ``atr_pct`` er den empiriske fordeling (array) eller én konstant.
 
     ``omk_usd`` er rundturen pr. kontrakt; 0 giver brutto. Returnerer udfaldene som antal,
@@ -180,7 +200,7 @@ def simulate(n_paths: int, wr: float, stop_atr: float, contracts: int, pessimist
     ruined = np.zeros(n_paths, dtype=bool)
     n_handler, pnl_sum, pnl_sum2 = 0, 0.0, 0.0
 
-    for _ in range(MAX_DAYS):
+    for _ in range(max_days):
         if not alive.any():
             break
         day_pnl = np.zeros(n_paths)
@@ -222,7 +242,7 @@ def simulate(n_paths: int, wr: float, stop_atr: float, contracts: int, pessimist
         best_day = np.where(alive, np.maximum(best_day, day_pnl), best_day)
         mll = np.where(alive, np.minimum(MLL_LOCK, np.maximum(mll, bal - MLL_ROOM)), mll)
 
-        target = np.maximum(PROFIT_TARGET, best_day / CONSISTENCY_FRAC)
+        target = np.maximum(PROFIT_TARGET, best_day / konsistens)
         won = alive & (days >= MIN_DAYS) & ((bal - START_BALANCE) >= target)
         passed |= won
         alive &= ~won
@@ -238,6 +258,8 @@ def simulate(n_paths: int, wr: float, stop_atr: float, contracts: int, pessimist
         "uafgjort": int(alive.sum()),
         "median_dage_bestaaet": float(np.median(days[passed])) if passed.any() else float("nan"),
         "median_dage_ruin": float(np.median(days[ruined])) if ruined.any() else float("nan"),
+        "dage_til_bestaa_p50": float(np.percentile(days[passed], 50)) if passed.any() else float("nan"),
+        "dage_til_bestaa_p90": float(np.percentile(days[passed], 90)) if passed.any() else float("nan"),
         "bestaaet_sti": passed,
         "ruin_sti": ruined,
         "n_handler": n_handler,
@@ -321,7 +343,7 @@ def k1(n_paths: int = N_PATHS) -> K1Resultat:
                 for omk, omk_navn in ((K1_OMK_USD, "netto"), (0.0, "brutto")):
                     for bm, pess in BRUD:
                         r = simulate(n_paths, wr, stop, k, pess, omk, K1_ATR_PCT, K1_NQ,
-                                     seed_v1(k, stop, wr))
+                                     seed_v1(k, stop, wr), konsistens=KONSISTENS_V2)
                         for maal, noegle in (("bestaa", "bestaaet"), ("ruin", "ruin"),
                                              ("uafgjort", "uafgjort")):
                             p1 = float(v1[f"{maal}_pct_{omk_navn}_{bm}"])
@@ -438,18 +460,21 @@ class Koersel:
     """Holder simulationerne, så samme (fordeling, stop, kontrakter, WR, omk, brud)
     kun køres én gang — og så parrede sammenligninger kan slå stierne op igen."""
 
-    def __init__(self, nq: float, n_paths: int):
+    def __init__(self, nq: float, n_paths: int, konsistens: float = CONSISTENCY_FRAC,
+                 horisont: int = MAX_DAYS):
         self.nq, self.n_paths = nq, n_paths
+        self.konsistens, self.horisont = konsistens, horisont
         self._cache: dict = {}
         self.antal = 0
 
     def sim(self, fd: Fordeling, stop: float, k: int, wr: float, omk: float,
             pess: bool) -> dict:
         key = (fd.vindue, fd.timeframe, fd.session, stop, k, round(wr, 12),
-               round(omk, 12), pess)
+               round(omk, 12), pess, self.konsistens, self.horisont)
         if key not in self._cache:
             self._cache[key] = simulate(self.n_paths, wr, stop, k, pess, omk, fd.atr_pct,
-                                        self.nq, SEED)
+                                        self.nq, SEED, konsistens=self.konsistens,
+                                        max_days=self.horisont)
             self.antal += 1
         return self._cache[key]
 
@@ -481,7 +506,8 @@ def punkt(K: Koersel, fd: Fordeling, stop: float, k: int, wr: float, akse: str, 
     meta = celle_meta(fd, K.nq, stop, k, omk)
     be = meta["be_WR_pct_ved_middel_R"] / 100
     row = {**meta, "variant": variant, "WR_akse": akse, "WR_rolle": rolle,
-           "WR_pct": 100 * wr, "edge_pp_over_be_WR": 100 * (wr - be)}
+           "WR_pct": 100 * wr, "edge_pp_over_be_WR": 100 * (wr - be),
+           "konsistens_pct": 100 * K.konsistens, "horisont_dage": K.horisont}
     stier = {}
     for omk_navn, c, wr_nul in (("netto", omk, be), ("brutto", 0.0, 1.0 / 3.0)):
         for bm, pess in BRUD:
@@ -496,6 +522,8 @@ def punkt(K: Koersel, fd: Fordeling, stop: float, k: int, wr: float, akse: str, 
                 row[f"{maal}_CI95_lav_{omk_navn}_{bm}"] = 100 * lo
                 row[f"{maal}_CI95_hoej_{omk_navn}_{bm}"] = 100 * hi
             row[f"uafgjort_pct_{omk_navn}_{bm}"] = 100 * r["uafgjort"] / n
+            row[f"dage_til_bestaa_p50_{omk_navn}_{bm}"] = r["dage_til_bestaa_p50"]
+            row[f"dage_til_bestaa_p90_{omk_navn}_{bm}"] = r["dage_til_bestaa_p90"]
             d, lo, hi = parret_diff_pp(r["bestaaet_sti"], z["bestaaet_sti"])
             row[f"nulmodel_bestaa_pct_{omk_navn}_{bm}"] = 100 * z["bestaaet"] / n
             row[f"bestaa_pp_over_nulmodel_{omk_navn}_{bm}"] = d
@@ -615,25 +643,25 @@ def konklusion(row: dict) -> dict:
 # Gitterkørslen
 # ---------------------------------------------------------------------------
 
-def _k1_tjek() -> dict:
-    if not K1_RESUME.exists():
-        raise SystemExit("K1 er ikke kørt. Kør `python -m research.mll_ruin k1` først.")
-    k = json.loads(K1_RESUME.read_text())
+def _k1v2_tjek() -> dict:
+    if not K1V2_RESUME.exists():
+        raise SystemExit("K1 mod v2 er ikke kørt. Kør `python -m research.mll_ruin k1v2` først.")
+    k = json.loads(K1V2_RESUME.read_text())
     if k.get("kode_sha256") != _kode_sha256():
-        raise SystemExit("K1-resultatet er fra en anden version af mll_ruin.py. Kør k1 igen.")
+        raise SystemExit("K1 mod v2 er fra en anden version af mll_ruin.py. Kør k1v2 igen.")
     if not k.get("holdt"):
-        raise SystemExit("K1 holdt ikke. Intet nyt tal er troværdigt før det holder.")
+        raise SystemExit("K1 mod v2 holdt ikke. Tillægskørslen køres ikke.")
     return k
 
 
-def gitter(n_paths: int = N_PATHS) -> dict:
+def beregn(G: Grundlag, K: Koersel) -> tuple[list[dict], list[dict], dict]:
+    """v2-pipelinen (prereg §1-8) ved K's konsistens og horisont. Skriver intet.
+
+    Returnerer (primærgitteret, øvrige rækker, resultater)."""
     from backtest import costs
     from data import sessions
     from research import atr_fordeling as af
 
-    k1_res = _k1_tjek()
-    G = indlaes_grundlag()
-    K = Koersel(G.nq, n_paths)
     omk = G.omk_rth.i_alt_usd
     fd = lambda v, m, s=sessions.RTH: G.fordelinger[(v, m, s)]
     er = lambda r, akse, rolle: r["WR_akse"] == akse and r["WR_rolle"] == rolle
@@ -756,16 +784,182 @@ def gitter(n_paths: int = N_PATHS) -> dict:
         "overblik": 100 * be_wr(2.59, r_usd(0.459, G.nq, 1.0)),
     }
 
-    alle = primaer + ekstra
-    skriv_csv(alle, atr_tab)
-    meta = {"k1": k1_res, "grundlag": G, "n_paths": n_paths, "n_sim": K.antal,
-            "commit": _git_commit()}
-    UD_MD.write_text(skriv_md(primaer, res, meta), encoding="utf-8")
-    UD_KRITERIER.write_text(json.dumps(kriterier_json(res, meta), indent=2, ensure_ascii=False),
-                            encoding="utf-8")
-    print(chat_tabel(ved_40, valg))
-    print(f"skrev {UD_MD}, {UD_CSV}, {UD_ATR} og {UD_KRITERIER}")
+    return primaer, ekstra, res
+
+
+def _noegle(r: dict) -> tuple:
+    return (r["vindue"], r["timeframe"], r["session"], int(float(r["kontrakter"])),
+            round(float(r["stop_ATR"]), 4), r["variant"], r["WR_akse"], str(r["WR_rolle"]))
+
+
+DET_KOLONNER = ("n_barer_ATR", "ATR_pct_p50", "ATR_pct_p90", "ATR_pct_middel", "R_usd_ved_ATR_p50",
+                "R_usd_ved_ATR_p90", "R_usd_middel", "omk_usd_rundtur_netto",
+                "risiko_pct_af_MLL_brutto_ved_ATR_p90", "risiko_pct_af_MLL_netto_ved_ATR_p50",
+                "risiko_pct_af_MLL_netto_ved_ATR_p90", "omk_R_ved_middel_R",
+                "be_WR_pct_ved_middel_R", "be_WR_pct_ved_R_p50", "WR_pct", "edge_pp_over_be_WR",
+                "vindue_datoer", "spread_ticks", "slippage_ticks_pr_side")
+
+
+def k1_v2(n_paths: int = N_PATHS) -> dict:
+    """Prereg T2: ny kode med konsistens 0,50 og 200 dage mod v2-kørslen, række for række.
+
+    Andele (bestået, ruin, uafgjort × netto/brutto × brudmodel) skal ligge inden for v2's
+    Wilson-CI, og de deterministiske kolonner skal være ens. Alle øvrige tal tælles som
+    identiske eller ej."""
+    G = indlaes_grundlag()
+    K = Koersel(G.nq, n_paths, KONSISTENS_V2, MAX_DAYS)
+    primaer, ekstra, _ = beregn(G, K)
+    ny = {_noegle(r): r for r in primaer + ekstra}
+    with open(V2_REFERENCE, newline="", encoding="utf-8") as f:
+        gamle = list(csv.DictReader(f))
+    andele = {f"{m}_pct_{o}_{b}" for m in ("bestaa", "ruin", "uafgjort")
+              for o in ("netto", "brutto") for b, _ in BRUD}
+    n_tal = n_ident = n_andele = n_i_ci = mangler = 0
+    det_ok, max_afv, afvig = True, 0.0, []
+    for g in gamle:
+        r = ny.get(_noegle(g))
+        if r is None:
+            mangler += 1
+            continue
+        for kol, gv in g.items():
+            nv = r.get(kol, "")
+            if gv == "" and nv in ("", None):
+                continue
+            try:
+                gf, nf = float(gv), float(nv)
+                ident = (np.isnan(gf) and np.isnan(nf)) or abs(nf - gf) <= 1e-9 * max(1.0, abs(gf))
+            except (TypeError, ValueError):
+                gf = nf = None
+                ident = str(nv) == gv
+            n_tal += 1
+            n_ident += bool(ident)
+            if not ident:
+                afvig.append({"raekke": "|".join(map(str, _noegle(g))), "kolonne": kol,
+                              "v2": gv, "ny": nv})
+                if kol in DET_KOLONNER:
+                    det_ok = False
+            if kol in andele and gf is not None:
+                n_andele += 1
+                if kol.startswith("uafgjort"):
+                    lo, hi = (100 * x for x in wilson_interval(round(gf / 100 * n_paths), n_paths))
+                else:
+                    lo = float(g[kol.replace("_pct_", "_CI95_lav_")])
+                    hi = float(g[kol.replace("_pct_", "_CI95_hoej_")])
+                n_i_ci += lo - 1e-9 <= nf <= hi + 1e-9
+                max_afv = max(max_afv, abs(nf - gf))
+    res = {"n_raekker_v2": len(gamle), "n_raekker_mangler": mangler, "n_tal": n_tal,
+           "n_identiske": n_ident, "n_andele": n_andele, "n_andele_inden_for_CI": n_i_ci,
+           "max_afvigelse_andele_pp": max_afv, "deterministiske_ok": det_ok,
+           "holdt": mangler == 0 and n_i_ci == n_andele and det_ok,
+           "n_stier": n_paths, "konsistens": KONSISTENS_V2, "horisont_dage": MAX_DAYS,
+           "reference": "research/output/mll_ruin_v2.csv (commit 594b61b)",
+           "kode_sha256": _kode_sha256()}
+    with open(K1V2_UD, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=["raekke", "kolonne", "v2", "ny"])
+        w.writeheader()
+        w.writerows(afvig)
+    K1V2_RESUME.write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
     return res
+
+
+def laas_aflaesning(rows: list[dict]) -> dict:
+    """Prereg T3, én aflæsning. Streng regel: 15m / 0,50 ATR skal have højeste punktestimat
+    i feltet OG forskellen til nummer to et parret CI over nul. Uafgjort er ikke låst."""
+    maal = "bestaa_pct_netto_pess"
+    p90 = "risiko_pct_af_MLL_netto_ved_ATR_p90"
+    felt = sorted((r for r in rows if r[p90] <= K3_RISIKO_P90_MAX_PCT), key=lambda r: -r[maal])
+    kand = next((r for r in felt if (r["timeframe"], r["stop_ATR"]) == LAAS_CELLE), None)
+    res = {"felt": felt, "kandidat": kand, "nummer_to": None, "diff": None}
+    if kand is None:
+        res.update(status="fejlet", grund="15m / 0,50 ATR er ikke i feltet")
+        return res
+    andre = [r for r in felt if r is not kand]
+    if not andre:
+        res.update(status="bestået", grund="eneste celle i feltet")
+        return res
+    n2 = andre[0]
+    d = parret_diff_pp(kand["_stier"][("netto", "pess")]["bestaaet_sti"],
+                       n2["_stier"][("netto", "pess")]["bestaaet_sti"])
+    res.update(nummer_to=n2, diff=d)
+    if n2[maal] > kand[maal]:
+        res.update(status="fejlet", grund=f"ikke forrest på punktestimat — {_celle(n2)} er foran")
+    elif d[1] > 0:
+        res.update(status="bestået", grund="forrest, og forskellens CI ligger over nul")
+    else:
+        res.update(status="uafgjort",
+                   grund="forrest på punktestimat, men forskellens CI krydser nul — tæller som ikke låst")
+    return res
+
+
+def monotoni(rows: list[dict]) -> dict:
+    """Prereg T5: ruin_pct_netto_pess skal stige med risiko p90. Brud = afgjort omvendt par."""
+    p90 = "risiko_pct_af_MLL_netto_ved_ATR_p90"
+    rs = sorted(rows, key=lambda r: r[p90])
+    omvendt, brud, n_par = [], [], 0
+    for i, a in enumerate(rs):
+        for b in rs[i + 1:]:
+            if a[p90] == b[p90]:
+                continue
+            n_par += 1
+            d = parret_diff_pp(a["_stier"][("netto", "pess")]["ruin_sti"],
+                               b["_stier"][("netto", "pess")]["ruin_sti"])
+            if d[0] > 0:
+                omvendt.append((a, b, d))
+            if d[1] > 0:
+                brud.append((a, b, d))
+    return {"raekker": rs, "n_par": n_par, "omvendt": omvendt, "brud": brud, "holdt": not brud}
+
+
+def gitter(n_paths: int = N_PATHS) -> dict:
+    """Tillægskørslen (prereg T1-T7): konsistens 0,55 ved 200 dage, 500 dage som diagnose."""
+    from data import sessions
+
+    k1v2 = _k1v2_tjek()
+    G = indlaes_grundlag()
+    K = Koersel(G.nq, n_paths, CONSISTENCY_FRAC, MAX_DAYS)
+    primaer, ekstra, res = beregn(G, K)
+    er = lambda r, akse, rolle: r["WR_akse"] == akse and r["WR_rolle"] == rolle
+    p90 = "risiko_pct_af_MLL_netto_ved_ATR_p90"
+    ved_40 = [r for r in primaer if er(r, "absolut", "40")]
+    ved_be6 = [r for r in primaer if er(r, "relativ", f"be+{ROBUST_RELATIV_PP}")]
+
+    laas = {"absolut": laas_aflaesning(ved_40), "relativ": laas_aflaesning(ved_be6)}
+    laas["laast"] = all(laas[a]["status"] == "bestået" for a in ("absolut", "relativ"))
+
+    with open(V2_REFERENCE, newline="", encoding="utf-8") as f:
+        v2 = [r for r in csv.DictReader(f) if r["vindue"] == PRIMAER and r["kontrakter"] == "1"
+              and r["variant"] == "basis"]
+    v2_celle = lambda r: f"{r['timeframe']} / {_f(float(r['stop_ATR']))} ATR"
+    v2_40 = {v2_celle(r): r for r in v2 if er(r, "absolut", "40")}
+    v2_be6 = {v2_celle(r): r for r in v2 if er(r, "relativ", f"be+{ROBUST_RELATIV_PP}")}
+    felt_v2 = sorted(c for c, r in v2_40.items() if float(r[p90]) <= K3_RISIKO_P90_MAX_PCT)
+    felt_ny = sorted(_celle(r) for r in ved_40 if r[p90] <= K3_RISIKO_P90_MAX_PCT)
+
+    K500 = Koersel(G.nq, n_paths, CONSISTENCY_FRAC, HORISONT_DIAGNOSE)
+    omk = G.omk_rth.i_alt_usd
+    r500 = []
+    for m in TIMEFRAMES:
+        for stop in STOP_ATR:
+            r500 += celle_raekker(K500, G.fordelinger[(PRIMAER, m, sessions.RTH)], stop, 1, omk)
+            print(f"  500 dage {m}m/{stop:.2f} ATR  ({K500.antal} simulationer)", flush=True)
+    mono = {MAX_DAYS: monotoni(ved_be6),
+            HORISONT_DIAGNOSE: monotoni([r for r in r500
+                                         if er(r, "relativ", f"be+{ROBUST_RELATIV_PP}")])}
+
+    k1_v1 = json.loads(K1_RESUME.read_text()) if K1_RESUME.exists() else None
+    T = {"laas": laas, "felt_v2": felt_v2, "felt_ny": felt_ny, "v2_40": v2_40,
+         "v2_be6": v2_be6, "r500": r500, "mono": mono, "k1v2": k1v2, "k1_v1": k1_v1}
+    skriv_csv(primaer + ekstra + r500, res["atr_tabel"], T_CSV, T_ATR)
+    meta = {"grundlag": G, "n_paths": n_paths, "n_sim": K.antal + K500.antal,
+            "commit": _git_commit()}
+    T_MD.write_text(skriv_md(primaer, res, meta, T), encoding="utf-8")
+    T_KRITERIER.write_text(json.dumps(kriterier_json(res, meta, T), indent=2, ensure_ascii=False),
+                           encoding="utf-8")
+    print(chat_tabel(ved_40, res["valg"]))
+    print(f"låst: {laas['laast']}  (absolut: {laas['absolut']['status']}, "
+          f"relativ: {laas['relativ']['status']})")
+    print(f"skrev {T_MD}, {T_CSV}, {T_ATR} og {T_KRITERIER}")
+    return {"res": res, "T": T}
 
 
 def _git_commit() -> str:
@@ -784,19 +978,19 @@ def _git_commit() -> str:
 # Output
 # ---------------------------------------------------------------------------
 
-def skriv_csv(rows: list[dict], atr_tab: list[dict]) -> None:
+def skriv_csv(rows: list[dict], atr_tab: list[dict], csv_sti: Path, atr_sti: Path) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     felter: list[str] = []
     for r in rows:
         for k in r:
             if not k.startswith("_") and k not in felter:
                 felter.append(k)
-    with open(UD_CSV, "w", newline="", encoding="utf-8") as f:
+    with open(csv_sti, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=felter)
         w.writeheader()
         for r in rows:
             w.writerow({k: v for k, v in r.items() if not k.startswith("_")})
-    with open(UD_ATR, "w", newline="", encoding="utf-8") as f:
+    with open(atr_sti, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(atr_tab[0]))
         w.writeheader()
         w.writerows(atr_tab)
@@ -849,6 +1043,10 @@ KOL_WR = [
     ("WR_pct", lambda r: _f(r["WR_pct"])),
     ("edge_pp_over_be_WR", lambda r: _f(r["edge_pp_over_be_WR"])),
 ]
+KOL_DAGE = [
+    ("dage_til_bestaa_p50_netto_pess", lambda r: _f(r["dage_til_bestaa_p50_netto_pess"], 0)),
+    ("dage_til_bestaa_p90_netto_pess", lambda r: _f(r["dage_til_bestaa_p90_netto_pess"], 0)),
+]
 KOL_UDFALD = [
     ("bestaa_pct_netto_pess [CI95]", _andel("bestaa", "netto", "pess")),
     ("bestaa_pct_brutto_pess [CI95]", _andel("bestaa", "brutto", "pess")),
@@ -856,40 +1054,56 @@ KOL_UDFALD = [
     ("ruin_pct_netto_opt [CI95]", _andel("ruin", "netto", "opt")),
     ("ruin_pct_brutto_pess", lambda r: _f(r["ruin_pct_brutto_pess"])),
     ("uafgjort_pct_netto_pess", lambda r: _f(r["uafgjort_pct_netto_pess"])),
+    ("uafgjort_pct_netto_opt", lambda r: _f(r["uafgjort_pct_netto_opt"])),
+] + KOL_DAGE + [
     ("bestaa_pp_over_nulmodel_netto_pess [CI95]", _pp_nul("netto", "pess")),
 ]
 
 
 def chat_tabel(ved_40: list[dict], valg: dict) -> str:
-    udp = valg["udpeget"]
-    linjer = ["| celle | risiko_pct_af_MLL_p90 | bestaa_pct_pess [CI] | ruin_pct_pess [CI] | ruin_pct_opt | bestaa_pp_over_nul |",
-              "|---|---|---|---|---|---|"]
+    linjer = ["| celle | risiko_pct_af_MLL_p90 | bestaa_pct_pess [CI] | ruin_pct_pess [CI] | ruin_pct_opt | uafgjort_pct_pess | dage_til_bestaa_p50/p90 |",
+              "|---|---|---|---|---|---|---|"]
     for r in ved_40:
-        mrk = " ←" if udp is not None and r is udp else ""
         linjer.append(
-            f"| {r['timeframe']}/{_f(r['stop_ATR'])}{mrk} | {_f(r['risiko_pct_af_MLL_netto_ved_ATR_p90'], 1)} | "
+            f"| {r['timeframe']}/{_f(r['stop_ATR'])} | {_f(r['risiko_pct_af_MLL_netto_ved_ATR_p90'], 1)} | "
             f"{_f(r['bestaa_pct_netto_pess'], 1)} {_ci(r['bestaa_CI95_lav_netto_pess'], r['bestaa_CI95_hoej_netto_pess'], 1)} | "
             f"{_f(r['ruin_pct_netto_pess'], 1)} {_ci(r['ruin_CI95_lav_netto_pess'], r['ruin_CI95_hoej_netto_pess'], 1)} | "
-            f"{_f(r['ruin_pct_netto_opt'], 1)} | {_f(r['bestaa_pp_over_nulmodel_netto_pess'], 1)} |")
+            f"{_f(r['ruin_pct_netto_opt'], 1)} | {_f(r['uafgjort_pct_netto_pess'], 1)} | "
+            f"{_f(r['dage_til_bestaa_p50_netto_pess'], 0)}/{_f(r['dage_til_bestaa_p90_netto_pess'], 0)} |")
     return "\n".join(linjer)
 
 
-def kriterier_json(res: dict, meta: dict) -> dict:
+def kriterier_json(res: dict, meta: dict, T: dict) -> dict:
     c = lambda r: None if r is None else _celle(r)
     v = res["valg"]
+    laas = T["laas"]
     ud = {
-        "K1": {k: meta["k1"][k] for k in ("holdt", "n_sammenligninger", "n_inden_for_CI",
-                                          "n_identiske", "max_afvigelse_pp")},
+        "konsistens": CONSISTENCY_FRAC, "horisont_dage": MAX_DAYS,
+        "K1_mod_v2": {k: T["k1v2"][k] for k in ("holdt", "n_andele", "n_andele_inden_for_CI",
+                                                "n_tal", "n_identiske", "max_afvigelse_andele_pp",
+                                                "deterministiske_ok")},
+        "laasning": {"laast": laas["laast"], **{
+            a: {"status": laas[a]["status"], "grund": laas[a]["grund"],
+                "nummer_to": c(laas[a]["nummer_to"]), "diff_pp": laas[a]["diff"],
+                "felt": [c(r) for r in laas[a]["felt"]]} for a in ("absolut", "relativ")}},
+        "felt_samme_som_v2": T["felt_v2"] == T["felt_ny"],
+        "monotoni_ruin_relativ": {str(h): {"holdt": m["holdt"], "n_par": m["n_par"],
+                                           "n_omvendt_punktestimat": len(m["omvendt"]),
+                                           "brud": [[c(a), c(b), d] for a, b, d in m["brud"]]}
+                                  for h, m in T["mono"].items()},
         "K2": {"status": res["K2"]["status"],
                "celler_med_oevre_CI_under_20": res["K2"]["celler_med_oevre_CI_under"]},
-        "valg": {"valgt": c(v["valgt"]), "nummer_to": c(v["nummer_to"]), "diff_pp": v["diff"],
-                 "uafgjort": v["uafgjort"], "tiebreak": v["tiebreak"], "udpeget": c(v["udpeget"]),
-                 "maks_uden_K3": c(v["maks_uden_K3"]), "maks_diff_pp": v["maks_diff"],
-                 "valgt_relativ_be+6": c(res["valg_relativ"]["valgt"])},
+        "valg_v2_regel": {"valgt": c(v["valgt"]), "nummer_to": c(v["nummer_to"]), "diff_pp": v["diff"],
+                          "uafgjort": v["uafgjort"], "tiebreak": v["tiebreak"],
+                          "udpeget": c(v["udpeget"]), "maks_uden_K3": c(v["maks_uden_K3"]),
+                          "maks_diff_pp": v["maks_diff"],
+                          "valgt_relativ_be+6": c(res["valg_relativ"]["valgt"])},
     }
     if v["udpeget"] is not None:
-        ud.update({"K3": res["K3"]["status"], "K4": {"status": res["K4"]["status"], "diff_pp": res["K4"]["diff"]},
-                   "K5": {"status": res["K5"]["status"], "grund": res["K5"]["grund"], "diff_pp": res["K5"]["diff"]},
+        ud.update({"K3": res["K3"]["status"],
+                   "K4": {"status": res["K4"]["status"], "diff_pp": res["K4"]["diff"]},
+                   "K5": {"status": res["K5"]["status"], "grund": res["K5"]["grund"],
+                          "diff_pp": res["K5"]["diff"]},
                    "fordeling_mod_konstant_ruin_pp": {f"{n}|{bm}": d for (n, bm), d in res["konstant"].items()},
                    "C4_blokerende": res["C4_blokerende"], "spread_afhaengig": res["spread_afhaengig"],
                    "foelsomhed": {r["variant"]: r["_konklusion"] for r in res["foelsomhed"]}})
@@ -898,119 +1112,182 @@ def kriterier_json(res: dict, meta: dict) -> dict:
     return ud
 
 
-def skriv_md(primaer: list[dict], res: dict, meta: dict) -> str:
+def skriv_md(primaer: list[dict], res: dict, meta: dict, T: dict) -> str:
     import datetime as _dt
+
+    from research.stats import spearman
 
     G: Grundlag = meta["grundlag"]
     o = G.omk_rth
-    e = G.omk_eth
     v = res["valg"]
     udp = v["udpeget"]
-    k1r = meta["k1"]
+    laas, k1v2 = T["laas"], T["k1v2"]
+    rel = f"be+{ROBUST_RELATIV_PP}"
     er = lambda r, akse, rolle: r["WR_akse"] == akse and r["WR_rolle"] == rolle
     ved_40 = [r for r in primaer if er(r, "absolut", "40")]
     fp = G.fordelinger[(PRIMAER, 15, "RTH")]
-    fk = G.fordelinger[(REF_K3, 15, "RTH")]
-    f12 = G.fordelinger[(REF_12M, 15, "RTH")]
     D = []
-    D.append("# Ruinmodel v2 — B6, sizing på det målte grundlag\n")
+
+    D.append("# Ruinmodel v2, tillæg — konsistens 55%\n")
     D.append(
         f"Kørt {_dt.date.today().isoformat()} på commit `{meta['commit']}`. "
-        f"**NQ-niveau {_f(G.nq)} — sidste RTH-luk i serien, {G.nq_tid_et} ET.** "
-        f"Alle dollartal i dokumentet står på det niveau. Serien: Databento GLBX.MDP3 NQ.v.0 "
-        f"ohlcv-1m, {G.serie_foerste_et} til {G.serie_sidste_et} ET. {_f(meta['n_paths'], 0)} "
-        f"parrede stier pr. kørsel, seed {SEED}, horisont {MAX_DAYS} handelsdage, 1-3 handler "
-        f"pr. dag, RR 2:1, 1 MNQ = $2/indekspoint. {meta['n_sim']} simulationer i alt.\n")
-    D.append("Opgave: `PRD_FASE2_RUINMODEL.md`. Valgregel, vinduer og operationalisering af "
-             "K2-K5: `research/prereg/fase2_valgregel.md` (committet før kørslen). Kode: "
-             "`research/mll_ruin.py`. Alle rækker: `mll_ruin_v2.csv`.\n")
+        f"**NQ-niveau {_f(G.nq)} — sidste RTH-luk i serien, {G.nq_tid_et} ET.** Primærvindue NQ RTH "
+        f"{fp.foerste_dato} til {fp.sidste_dato}. {_f(meta['n_paths'], 0)} parrede stier pr. kørsel, "
+        f"seed {SEED}, **konsistens 55%**, **horisont {MAX_DAYS} handelsdage** og {HORISONT_DIAGNOSE} "
+        f"dage som diagnose. Omkostning ${_f(o.i_alt_usd, 3)} pr. rundtur i RTH. RR 2:1, 1 MNQ = "
+        f"$2/indekspoint. {meta['n_sim']} simulationer. Alle rækker: `mll_ruin_v2_k55.csv`.\n")
+    D.append(
+        "**Hvad tillægget retter.** `REGLER_VERIFICERET.md` §3 giver konsistensreglen som \"Best Day "
+        "÷ 0.55 = Total Profit Needed\". Bestået kræver `samlet profit ≥ max(3.000, bedste_dag / 0,55)`; "
+        "en bedste dag på $1.650 er grænsen ved et mål på $3.000. v1 og v2 regnede med 0,50 og krævede "
+        "bedste dag ≤ $1.500. Modellen var strengere end virkeligheden. **Alt andet er uændret.** "
+        "`mll_ruin_v2.md` står som den er; dette dokument erstatter dens tal. Præregistrering: "
+        "`research/prereg/fase2_valgregel.md`, tillæg T1-T7, committet før kørslen.\n")
+    D.append(
+        "**Horisonten er et budget, ikke en regel.** Combine har ingen tidsgrænse. 200 handelsdage er "
+        "cirka ti måneder og $490-950 i abonnement. `uafgjort_pct` betyder *ikke bestået endnu*.\n")
+    D.append("Nye kolonner: `dage_til_bestaa_p50`/`_p90` = 50./90. percentil (lineær) af antal "
+             "handelsdage til bestået, blandt de stier der består inden for horisonten. "
+             "`horisont_dage`, `konsistens_pct`. Øvrige kolonner og formler: `mll_ruin_v2.md`.\n")
 
-    D.append("## Grundlag\n")
-    D.append(_md([
-        {"v": "Primært (hele gitteret)", "d": f"{fp.foerste_dato} til {fp.sidste_dato}", "n": fp.n},
-        {"v": "Reference A: K3-årene 2016-2026", "d": f"{fk.foerste_dato} til {fk.sidste_dato}", "n": fk.n},
-        {"v": "Reference B: seneste 12 måneder (K5)", "d": f"{f12.foerste_dato} til {f12.sidste_dato}", "n": f12.n},
-    ], [("vindue, NQ RTH", lambda r: r["v"]), ("ET-datoer", lambda r: r["d"]),
-        ("n_barer_ATR_15m", lambda r: _f(r["n"], 0))]))
-    D.append("**Instrument: NQ, ikke MNQ (antagelse).** Mads besluttede MNQ som primær serie, "
-             "men MNQ-1m-barer ligger ikke i cachen, og et udtræk ville koste ~$9,46. Valget "
-             "blev NQ fra 2019-05-06 uden udgift. At ATR i procent er den samme på NQ og MNQ er "
-             "derfor **ikke målt**. Risikoen kommer fra NQ, spreadet fra MNQ.\n")
-    D.append("### Omkostning pr. rundtur, 1 MNQ — `backtest.costs.rundtur_dekomponering`\n")
-    D.append(_md([
-        {"led": "Kommission", "r": o.kommission_usd, "e": e.kommission_usd, "s": "V — TopstepX"},
-        {"led": f"Spread, 1 × fuld ({_f(o.spread_ticks)} / {_f(e.spread_ticks)} tick)",
-         "r": o.spread_usd, "e": e.spread_usd, "s": "M — fase 1, med forbehold"},
-        {"led": f"Slippage, realiseret {_f(o.slippage_ticks_pr_side, 4)} tick pr. side",
-         "r": o.slippage_usd, "e": e.slippage_usd, "s": "S — ikke målt"},
-        {"led": "**I alt rundtur**", "r": o.i_alt_usd, "e": e.i_alt_usd, "s": ""},
-    ], [("led", lambda r: r["led"]), ("usd_RTH", lambda r: _f(r["r"], 3)),
-        ("usd_uden_for_RTH", lambda r: _f(r["e"], 3)), ("status", lambda r: r["s"])]))
-    D.append("Slippage er `max(0, N(0,5; 0,5))` tick pr. side. Afskæringen ved nul løfter "
-             "middelværdien fra 0,50 til 0,5417, og den betyder også at **modellen aldrig "
-             "tillader gunstig slippage**. Slippage er nu det største uverificerede led. "
-             "Konfigurationen erklærer den realiserede værdi, og en test holder den op mod "
-             "koden.\n")
+    # K1 mod v2
+    D.append("## K1 mod v2 (prereg T2)\n")
+    D.append(
+        f"Den nye kode kørt med konsistens 0,50 og 200 dage, holdt op mod v2-kørslen "
+        f"({k1v2['reference']}) række for række. **{'Holdt' if k1v2['holdt'] else 'Holdt IKKE'}:** "
+        f"{k1v2['n_andele_inden_for_CI']} af {k1v2['n_andele']} andele inden for v2's CI. "
+        f"{k1v2['n_identiske']} af {k1v2['n_tal']} tal i alle {k1v2['n_raekker_v2']} rækker er identiske, "
+        f"{k1v2['n_raekker_mangler']} rækker mangler, største afvigelse i en andel "
+        f"{_f(k1v2['max_afvigelse_andele_pp'], 3)} pp. Deterministiske kolonner "
+        f"{'ens' if k1v2['deterministiske_ok'] else 'IKKE ens'}. Kun konsistensparameteren er ændret. "
+        f"Afvigelser, hvis nogen: `mll_ruin_v2_k55_k1.csv`.\n")
+    if T["k1_v1"]:
+        D.append(f"K1 mod v1-gitteret fra 2026-09-09 blev kørt på v2-koden (commit `594b61b`): "
+                 f"{T['k1_v1']['n_inden_for_CI']} af {T['k1_v1']['n_sammenligninger']} inden for CI.\n")
 
-    D.append("## Hvorfor nulmodellen\n")
-    D.append("En beståelsesrate på 88% lyder som en edge. Men uden nulmodellen ved man ikke om "
-             "den kommer fra strategien eller fra at Topsteps regelgeometri er mild ved den "
-             "sizing. Nulmodellen er samme celle, samme stier, samme omkostning og samme "
-             "mekanik — med win rate sat til cellens egen break-even, altså nul forventet P&L "
-             "pr. handel. Kolonnen der betyder noget er forskellen, `bestaa_pp_over_nulmodel`, "
-             "med sit CI. **Det er også formen på falsifikationstesten for hver fremtidig "
-             "strategi** (metoderegel 12).\n")
-    D.append("Nul forventning betyder ikke nul beståelse. En driftløs vandring mod et gulv på "
-             "$2.000 og et mål på $3.000 rammer målet først i en betydelig del af stierne. Det "
-             "er derfor nulmodellen er referencen — ikke et tegn på at noget er galt.\n")
-    D.append("Nulmodellen er et mål for regelgeometrien, ikke valgets målfunktion. Valget "
-             "træffes på beståelsesraten (prereg §4).\n")
+    # Låsekriteriet
+    D.append("## Låsekriteriet (prereg T3)\n")
+    if laas["laast"]:
+        D.append("**Cellen 15m / 0,50 ATR er låst.** Begge aflæsninger består.\n")
+    else:
+        D.append("**Cellen er ikke låst. Fasens svar er risikobåndet 6-7% af MLL ved p90, ikke én "
+                 "celle.** Timeframen afgøres i B4 på edge-grunde, og stoppet sættes så risikoen "
+                 "lander i båndet.\n")
+    D.append("To aflæsninger ved 55% konsistens og 200 dage. Feltet er cellerne med 1 kontrakt der "
+             "klarer `risiko_pct_af_MLL_netto_ved_ATR_p90 ≤ 10`. Målet er `bestaa_pct_netto_pess`. "
+             "Streng regel: 15m / 0,50 ATR skal være forrest på punktestimat, og forskellens parrede "
+             "CI mod nummer to skal ligge over nul. Uafgjort tæller som ikke låst.\n")
+    D.append(_md([dict(a=a, **laas[k]) for a, k in (("1. absolut, WR 40%", "absolut"),
+                                                   (f"2. relativ, be_WR + {ROBUST_RELATIV_PP} pp", "relativ"))], [
+        ("aflæsning", lambda r: r["a"]),
+        ("15m/0,50 bestaa_pct_netto_pess [CI95]", lambda r: "—" if r["kandidat"] is None else _andel("bestaa", "netto", "pess")(r["kandidat"])),
+        ("nummer to", lambda r: "—" if r["nummer_to"] is None else _celle(r["nummer_to"])),
+        ("nummer to bestaa_pct_netto_pess [CI95]", lambda r: "—" if r["nummer_to"] is None else _andel("bestaa", "netto", "pess")(r["nummer_to"])),
+        ("forskel_pp 15m/0,50 − nummer to [CI95, parret]", lambda r: _d(r["diff"])),
+        ("status", lambda r: f"**{r['status']}**"),
+        ("grund", lambda r: r["grund"]),
+    ]))
+    D.append(f"**Feltet** ({len(T['felt_ny'])} celler): {', '.join(T['felt_ny'])}. "
+             + ("Samme felt som i v2 — `risiko_pct_af_MLL_netto_ved_ATR_p90` afhænger hverken af "
+                "konsistensreglen eller horisonten." if T["felt_v2"] == T["felt_ny"]
+                else f"**Ikke samme felt som i v2** ({', '.join(T['felt_v2'])}).") + "\n")
+    for a, titel in (("absolut", "absolut, WR 40%"), ("relativ", f"relativ, be_WR + {ROBUST_RELATIV_PP} pp")):
+        D.append(f"### Feltet rangeret — {titel}\n")
+        D.append(_md([dict(rang=i + 1, **r) for i, r in enumerate(laas[a]["felt"])],
+                     [("rang", lambda r: _f(r["rang"], 0))] + KOL_CELLE + KOL_WR + [
+                         ("bestaa_pct_netto_pess [CI95]", _andel("bestaa", "netto", "pess")),
+                         ("ruin_pct_netto_pess [CI95]", _andel("ruin", "netto", "pess")),
+                         ("uafgjort_pct_netto_pess", lambda r: _f(r["uafgjort_pct_netto_pess"]))] + KOL_DAGE))
 
-    D.append("## Kolonner og formler\n")
-    D.append(_md([
-        {"k": "`ATR_pct_pXX`, `ATR_pct_middel`", "f": "XX. percentil (lineær) / middel af ATR i % af prisen over vinduets barer. Wilder 14, brudhåndtering som fase 1"},
-        {"k": "`R_usd_ved_ATR_pXX`", "f": "`NQ × ATR_pct_pXX/100 × 2 × stop_ATR` — 1R for én MNQ ved den percentil"},
-        {"k": "`R_usd_middel`", "f": "middel af `NQ × ATR_pct/100 × 2 × stop_ATR` over den array simulationen sampler fra = E[R]"},
-        {"k": "`risiko_pct_af_MLL_netto_ved_ATR_pXX`", "f": "`kontrakter × (R_usd_ved_ATR_pXX + omk) / 2.000 × 100`. p90 er go/no-go og K3-filteret"},
-        {"k": "`risiko_pct_af_MLL_brutto_ved_ATR_p90`", "f": "`kontrakter × R_usd_ved_ATR_p90 / 2.000 × 100`"},
-        {"k": "`omk_R_ved_middel_R`", "f": "`omk / R_usd_middel`"},
-        {"k": "`be_WR_pct_ved_middel_R`", "f": "`(1 + omk / R_usd_middel) / 3 × 100` — nul forventet P&L når R trækkes. **Nulmodellens WR**"},
-        {"k": "`be_WR_pct_ved_R_p50`", "f": "`(1 + omk / R_usd_ved_ATR_p50) / 3 × 100` — §5a's gamle kolonne. Break-even for en konstant-model med R = R_p50, ikke for en fordeling"},
-        {"k": "`edge_pp_over_be_WR`", "f": "`WR_pct − be_WR_pct_ved_middel_R`"},
-        {"k": "`bestaa_pct`, `ruin_pct`, `uafgjort_pct`", "f": "andel af stierne der når målet / bryder MLL / står ved horisonten. `_netto`/`_brutto` = med/uden omkostning, `_opt`/`_pess` = brudmodel. CI95 = Wilson"},
-        {"k": "`bestaa_pp_over_nulmodel`", "f": "`bestaa_pct(WR) − bestaa_pct(nulmodel)` på de samme stier. Netto-nulmodellen kører ved `be_WR_pct_ved_middel_R`, brutto-nulmodellen ved 33,33%. CI95 = Newcombe, parret (metode 10)"},
-        {"k": "`pnl_middel_pr_handel_usd`", "f": "realiseret middel-P&L pr. taget handel, nominelt udfald inkl. den handel der slår kontoen ihjel"},
-    ], [("kolonne", lambda r: r["k"]), ("formel", lambda r: r["f"])]))
-    bd = res["be_wr_definitioner"]
-    D.append("### `be_WR_pct_netto_p90` fra fase 1 (PRD 4.4)\n")
-    D.append(f"**Formlen er den samme, percentilen er ikke.** Begge regner `(1 + omk_R) / 3 × 100`. "
-             f"Fase 1 tog `omk_R_netto_p90` som 90. percentil af `omk/R` bar for bar — og da "
-             f"`omk/R` falder med ATR, er det omkostningen ved ATR's **p10**. Det giver "
-             f"{_f(bd['fase1'])}% på 15m RTH, K3 2016-2026, ${_f(bd['fase1_omk_usd'], 2)}: den "
-             f"høje ende, hvor omkostningen gør ondt. Overblikssessionens definition tager `omk_R` "
-             f"ved `R_usd_p90`, altså ATR's p90, og giver {_f(bd['overblik'])}% med $2,59. "
-             f"Fase 1's kolonne er dermed rigtig for sin definition, men navnet sagde ikke hvad den "
-             f"var percentil af. Her har kolonnerne navn efter hvad de står ved: "
-             f"`be_WR_pct_ved_R_p50` og `be_WR_pct_ved_middel_R`.\n")
+    # 50 mod 55
+    D.append("## Hvad rettelsen flyttede — 50% (v2) mod 55%, 200 dage\n")
+    D.append("Samme seed og samme stier, men to kørsler, så forskellen står som punktforskel. CI'erne "
+             "for hver kørsel står ved siden af.\n")
+    for akse, rolle, v2d, titel in (("absolut", "40", T["v2_40"], "absolut, WR 40%"),
+                                    ("relativ", rel, T["v2_be6"], f"relativ, be_WR + {ROBUST_RELATIV_PP} pp")):
+        rk = [r for r in primaer if er(r, akse, rolle)]
+        rang55 = {_celle(r): i + 1 for i, r in enumerate(sorted(rk, key=lambda r: -r["bestaa_pct_netto_pess"]))}
+        rang50 = {c: i + 1 for i, c in enumerate(sorted(v2d, key=lambda c: -float(v2d[c]["bestaa_pct_netto_pess"])))}
+        D.append(f"### {titel}\n")
+        g = lambda r, k: float(v2d[_celle(r)][k])
+        D.append(_md(rk, KOL_CELLE + [
+            ("bestaa_pct_netto_pess_50 [CI95]", lambda r: f"{_f(g(r, 'bestaa_pct_netto_pess'))} {_ci(g(r, 'bestaa_CI95_lav_netto_pess'), g(r, 'bestaa_CI95_hoej_netto_pess'))}"),
+            ("bestaa_pct_netto_pess_55 [CI95]", _andel("bestaa", "netto", "pess")),
+            ("forskel_pp_55_minus_50", lambda r: _f(r["bestaa_pct_netto_pess"] - g(r, "bestaa_pct_netto_pess"))),
+            ("uafgjort_pct_netto_pess_50", lambda r: _f(g(r, "uafgjort_pct_netto_pess"))),
+            ("uafgjort_pct_netto_pess_55", lambda r: _f(r["uafgjort_pct_netto_pess"])),
+            ("ruin_pct_netto_pess_50", lambda r: _f(g(r, "ruin_pct_netto_pess"))),
+            ("ruin_pct_netto_pess_55", lambda r: _f(r["ruin_pct_netto_pess"])),
+            ("rang_50", lambda r: _f(rang50[_celle(r)], 0)),
+            ("rang_55", lambda r: _f(rang55[_celle(r)], 0)),
+        ]))
 
-    D.append("## K1 — regressionstjek\n")
-    D.append(f"Konstant ATR 0,168%, NQ 29.639,50, omkostning $2,472, v1's seeds, "
-             f"{_f(k1r['n_stier'], 0)} stier. **{'Holdt' if k1r['holdt'] else 'Holdt IKKE'}:** "
-             f"{k1r['n_inden_for_CI']} af {k1r['n_sammenligninger']} andele inden for v1's Wilson-CI "
-             f"(bestået, ruin og uafgjort × netto/brutto × begge brudmodeller × 36 celler). "
-             f"{k1r['n_identiske']} er identiske op til v1's afrunding; største afvigelse "
-             f"{_f(k1r['max_afvigelse_pp'], 3)} pp. De deterministiske kolonner (R, risiko, omk_R, "
-             f"be_WR) er {'ens' if k1r['deterministiske_ok'] else 'IKKE ens'}. Kørt på den kode der "
-             f"har kørt gitteret (sha256 tjekket). Første K1-kørsel, før stierne blev parret "
-             f"(commit `0aa23bc`): 432/432 inden for CI, 432 identiske. Detaljer: "
-             f"`mll_ruin_v2_k1.csv`.\n")
+    # Monotoni
+    D.append("## Selvtjek: monotoni i ruin på den relative akse (prereg T5)\n")
+    D.append("**Identiteten.** Med gevinst/tab-forhold r og win rate be_WR + δ er forventningen pr. "
+             "handel δ·(r+1) i R, uafhængigt af cellen: `EV = (be_WR + δ)(r+1) − 1 − omk/E[R]` og "
+             "`be_WR = (1 + omk/E[R])/(r+1)`. Ved 2:1 og δ = 6 pp er det **0,18 R i alle celler**. Den "
+             "relative akse er derfor den kanoniske \"samme edge\"-akse og den eneste hvor gambler's "
+             "ruin-argumentet gælder: ruin skal stige med indsatsen. På den absolutte akse varierer "
+             "forventningen mellem cellerne, og den må ikke bruges til en teoretisk sammenligning.\n")
+    for h, m in T["mono"].items():
+        D.append(f"- **{h} dage:** {m['n_par']} par, {len(m['omvendt'])} omvendt på punktestimat, "
+                 f"**{len(m['brud'])} afgjorte brud → {'holdt' if m['holdt'] else 'IKKE holdt — et fund der skal undersøges før noget låses'}.**")
+    D.append("")
+    m2, m5 = T["mono"][MAX_DAYS], T["mono"][HORISONT_DIAGNOSE]
+    r5 = {_celle(r): r for r in m5["raekker"]}
+    D.append(f"Sorteret efter risiko. `censur` = `uafgjort_pct_netto_pess ≥ {_f(CENSUR_FLAG_PCT, 0)}` ved "
+             f"den horisont — stærkt censureret; ruinestimatet er lille og støjende, men bryder ikke tjekket.\n")
+    D.append(_md(m2["raekker"], KOL_CELLE + [
+        ("ruin_pct_netto_pess_200 [CI95]", _andel("ruin", "netto", "pess")),
+        ("uafgjort_pct_netto_pess_200", lambda r: _f(r["uafgjort_pct_netto_pess"])),
+        ("censur_200", lambda r: "ja" if r["uafgjort_pct_netto_pess"] >= CENSUR_FLAG_PCT else ""),
+        ("ruin_pct_netto_pess_500 [CI95]", lambda r: _andel("ruin", "netto", "pess")(r5[_celle(r)])),
+        ("uafgjort_pct_netto_pess_500", lambda r: _f(r5[_celle(r)]["uafgjort_pct_netto_pess"])),
+        ("censur_500", lambda r: "ja" if r5[_celle(r)]["uafgjort_pct_netto_pess"] >= CENSUR_FLAG_PCT else ""),
+    ]))
+    for h, m in T["mono"].items():
+        if m["omvendt"]:
+            D.append(f"Omvendte par ved {h} dage (lavere risiko, højere ruin):\n")
+            D.append(_md([{"a": a, "b": b, "d": d} for a, b, d in m["omvendt"]], [
+                ("lavere risiko", lambda x: _celle(x["a"])), ("højere risiko", lambda x: _celle(x["b"])),
+                ("ruin_pp_lav_minus_hoej [CI95, parret]", lambda x: _d(x["d"])),
+                ("afgjort brud", lambda x: "ja" if x["d"][1] > 0 else "nej")]))
 
-    D.append("## K2-K5\n")
-    kr = [{"k": "K1", "t": "hver celle inden for sit 95%-CI", "v": f"{k1r['n_inden_for_CI']}/{k1r['n_sammenligninger']}",
-           "s": "holdt" if k1r["holdt"] else "ikke holdt"}]
+    # 500 dage
+    D.append("## 500 dage — diagnose, ikke kriterium (prereg T4)\n")
+    D.append("Med positiv forventning falder ruin monotont med indsatsen, så en lang nok horisont vil "
+             "altid rangere de mindste celler øverst. Det kan forudsiges uden at køre noget, og derfor "
+             "låser 500 dage ikke. Tabellerne viser hvor meget de 200 dage former rangeringen.\n")
+    r500 = T["r500"]
+    for akse, rolle, titel in (("absolut", "40", "absolut, WR 40%"), ("relativ", rel, f"relativ, be_WR + {ROBUST_RELATIV_PP} pp")):
+        a2 = {_celle(r): r for r in primaer if er(r, akse, rolle)}
+        a5 = sorted((r for r in r500 if er(r, akse, rolle)), key=lambda r: -r["bestaa_pct_netto_pess"])
+        rang2 = {c: i + 1 for i, c in enumerate(sorted(a2, key=lambda c: -a2[c]["bestaa_pct_netto_pess"]))}
+        sp = spearman([r["risiko_pct_af_MLL_netto_ved_ATR_p90"] for r in a5],
+                      [r["bestaa_pct_netto_pess"] for r in a5])
+        D.append(f"### {titel}\n")
+        D.append(f"Øverst ved 500 dage: **{_celle(a5[0])}**; ved 200 dage: {_celle(min(a2.values(), key=lambda r: -r['bestaa_pct_netto_pess']))}. "
+                 f"Spearman mellem risiko p90 og bestaa_pct ved 500 dage: {_f(sp.r)} (n = {sp.n}). "
+                 "Rangeringen af bestaa_pct rapporteres; den er ikke selvtjekket.\n")
+        D.append(_md(a5, [("rang_500", lambda r, a5=a5: _f(a5.index(r) + 1, 0)),
+                          ("rang_200", lambda r, rang2=rang2: _f(rang2[_celle(r)], 0))] + KOL_CELLE + [
+            ("bestaa_pct_netto_pess_200 [CI95]", lambda r, a2=a2: _andel("bestaa", "netto", "pess")(a2[_celle(r)])),
+            ("uafgjort_pct_netto_pess_200", lambda r, a2=a2: _f(a2[_celle(r)]["uafgjort_pct_netto_pess"])),
+            ("dage_til_bestaa_p50/p90_200", lambda r, a2=a2: f"{_f(a2[_celle(r)]['dage_til_bestaa_p50_netto_pess'], 0)} / {_f(a2[_celle(r)]['dage_til_bestaa_p90_netto_pess'], 0)}"),
+            ("bestaa_pct_netto_pess_500 [CI95]", _andel("bestaa", "netto", "pess")),
+            ("uafgjort_pct_netto_pess_500", lambda r: _f(r["uafgjort_pct_netto_pess"])),
+            ("dage_til_bestaa_p50/p90_500", lambda r: f"{_f(r['dage_til_bestaa_p50_netto_pess'], 0)} / {_f(r['dage_til_bestaa_p90_netto_pess'], 0)}"),
+            ("ruin_pct_netto_pess_500 [CI95]", _andel("ruin", "netto", "pess")),
+        ]))
+
+    # v2-pipelinen ved 55%
+    D.append("## K2-K5 ved 55% (PRD §3, prereg §5)\n")
+    kr = []
     lr = res["K2"]["laveste_ruin"]
     kr.append({"k": "K2", "t": "∃ celle, 1 kontrakt: ruin_pct_netto_pess ≤ 20 ved WR 40%",
-               "v": f"laveste: {_celle(lr)} {_andel('ruin', 'netto', 'pess')(lr)}. Øvre CI ≤ 20: "
+               "v": f"laveste: {_celle(lr)} {_andel('ruin', 'netto', 'pess')(lr)}, uafgjort "
+                    f"{_f(lr['uafgjort_pct_netto_pess'])}. Øvre CI ≤ 20: "
                     f"{', '.join(res['K2']['celler_med_oevre_CI_under']) or 'ingen'}",
                "s": res["K2"]["status"]})
     if udp is not None:
@@ -1018,7 +1295,7 @@ def skriv_md(primaer: list[dict], res: dict, meta: dict) -> str:
                    "v": f"{_celle(udp)}: {_f(udp['risiko_pct_af_MLL_netto_ved_ATR_p90'])}. "
                         f"{v['n_klarer_K3']} af 12 celler klarer filteret", "s": res["K3"]["status"]})
         kr.append({"k": "K4", "t": "ruin_pess − ruin_opt ≤ 5 pp, netto, WR 40%",
-                   "v": f"{_d(res['K4']['diff'])} pp", "s": res["K4"]["status"]})
+                   "v": f"{_celle(udp)}: {_d(res['K4']['diff'])} pp", "s": res["K4"]["status"]})
         kr.append({"k": "K5", "t": "samme celle under seneste 12 måneder",
                    "v": f"{res['K5']['grund']}. Forskel {_d(res['K5']['diff'])} pp", "s": res["K5"]["status"]})
     else:
@@ -1026,70 +1303,32 @@ def skriv_md(primaer: list[dict], res: dict, meta: dict) -> str:
                    "s": "ikke holdt"})
     D.append(_md(kr, [("#", lambda r: f"**{r['k']}**"), ("tærskel", lambda r: r["t"]),
                       ("værdi [CI95]", lambda r: r["v"]), ("status", lambda r: f"**{r['s']}**")]))
-
-    D.append("## Valget (prereg §4)\n")
-    if udp is None:
-        D.append("Ingen celle klarer K3-filteret. Der vælges ingen celle.\n")
-    else:
-        D.append(f"Målfunktion `bestaa_pct_netto_pess` ved WR 40% absolut, blandt de "
-                 f"{v['n_klarer_K3']} celler der klarer `risiko_pct_af_MLL_netto_ved_ATR_p90 ≤ 10`.\n")
-        D.append(f"- **Højeste: {_celle(v['valgt'])}** — {_andel('bestaa', 'netto', 'pess')(v['valgt'])}%.")
-        if v["nummer_to"] is not None:
-            D.append(f"- Nummer to: {_celle(v['nummer_to'])} — {_andel('bestaa', 'netto', 'pess')(v['nummer_to'])}%.")
-            D.append(f"- Forskel, parret: {_d(v['diff'])} pp. "
-                     + ("**CI'et krydser nul: valget er uafgjort.** Begge celler rapporteres. "
-                        f"Tiebreak på laveste risiko p90 udpeger {_celle(udp)} til K4, K5, "
-                        "følsomhed og konstant-sammenligningen — **det er en tiebreak, ikke et resultat.**"
-                        if v["uafgjort"] else "CI'et ligger over nul: valget er afgjort."))
-        m = v["maks_uden_K3"]
-        if v["maks_diff"] is None:
-            D.append("- Maksimum uden K3-filteret er den samme celle. Filteret bestemte ikke valget.")
-        else:
-            D.append(f"- **Maksimum uden K3-filteret: {_celle(m)}** — {_andel('bestaa', 'netto', 'pess')(m)}%, "
-                     f"risiko p90 {_f(m['risiko_pct_af_MLL_netto_ved_ATR_p90'])}. Forskel til den valgte, "
-                     f"parret: {_d(v['maks_diff'])} pp. **Det er hvad K3-filteret koster.**")
-        vr = res["valg_relativ"]
-        if vr["valgt"] is None:
-            D.append("- Relativ akse (be_WR + 6 pp): ingen celle klarer filteret.")
-        else:
-            skifter = _celle(vr["valgt"]) != _celle(v["valgt"])
-            D.append(f"- **Robusthed, relativ akse (be_WR + 6 pp):** højeste er {_celle(vr['valgt'])} — "
-                     f"{_andel('bestaa', 'netto', 'pess')(vr['valgt'])}%"
-                     + (f"; nummer to {_celle(vr['nummer_to'])}, forskel {_d(vr['diff'])} pp"
-                        + (" (uafgjort)" if vr["uafgjort"] else "") if vr["nummer_to"] is not None else "")
-                     + (". **Valget skifter under den relative akse: cellen er et artefakt af "
-                        "sammenligningsgrundlaget.**" if skifter else ". Valget skifter ikke."))
-        D.append("")
+    if udp is not None:
+        D.append(f"K4, K5, følsomheden og konstant-sammenligningen er kørt på den celle v2's valgregel "
+                 f"udpeger ved 55%: **{_celle(udp)}**"
+                 + (" (tiebreak, ikke resultat)" if v["tiebreak"] else "")
+                 + f". Nummer to: {_celle(v['nummer_to']) if v['nummer_to'] is not None else '—'}, "
+                 f"forskel {_d(v['diff'])} pp. Om en celle låses, afgøres alene af låsekriteriet ovenfor.\n")
 
         D.append("## Nulmodellen i den udpegede celle\n")
-        D.append(f"**{_celle(udp)}, netto: be_WR {_f(udp['be_WR_pct_ved_middel_R'])}% → "
-                 f"bestaa_pct {_f(udp['nulmodel_bestaa_pct_netto_pess'])}% (pessimistisk) og "
-                 f"{_f(udp['nulmodel_bestaa_pct_netto_opt'])}% (optimistisk).** Det er "
-                 f"beståelsesraten ved nul edge med denne sizing — referencepunktet for hver "
-                 f"strategi der senere måles i cellen. Ved WR 40% ligger cellen "
-                 f"{_pp_nul('netto', 'pess')(udp)} pp over.\n")
         z = [r for r in primaer if er(r, "relativ", "be") and _celle(r) == _celle(udp)][0]
-        D.append(f"Nulmodellens ruin: {_andel('ruin', 'netto', 'pess')(z)}% pessimistisk, "
-                 f"{_andel('ruin', 'netto', 'opt')(z)}% optimistisk; uafgjort "
-                 f"{_f(z['uafgjort_pct_netto_pess'])}%.\n")
-
+        D.append(f"**{_celle(udp)}, netto: be_WR {_f(udp['be_WR_pct_ved_middel_R'])}% → bestaa_pct "
+                 f"{_andel('bestaa', 'netto', 'pess')(z)}% pessimistisk og "
+                 f"{_andel('bestaa', 'netto', 'opt')(z)}% optimistisk; ruin "
+                 f"{_andel('ruin', 'netto', 'pess')(z)}%; uafgjort {_f(z['uafgjort_pct_netto_pess'])}%; "
+                 f"dage til bestået p50/p90 {_f(z['dage_til_bestaa_p50_netto_pess'], 0)}/"
+                 f"{_f(z['dage_til_bestaa_p90_netto_pess'], 0)}.** Ved WR 40% ligger cellen "
+                 f"{_pp_nul('netto', 'pess')(udp)} pp over.\n")
     nt = res["nul_tjek"]
-    D.append("### Selvtjek: er nulmodellen nul?\n")
-    D.append(f"Realiseret middel-P&L pr. taget handel i de 12 nul-celler, netto, begge brudmodeller: "
-             f"**{sum(x['nul_i_CI'] for x in nt)} af {len(nt)} har 0 inden for 95%-CI.** "
-             + ("Formel og simulation er enige." if all(x["nul_i_CI"] for x in nt)
-                else "**Ikke alle — formel og simulation er uenige et sted.**") + "\n")
-    D.append(_md(nt, [("celle", lambda r: r["celle"]), ("brudmodel", lambda r: r["brudmodel"]),
-                      ("n_handler", lambda r: _f(r["n_handler"], 0)),
-                      ("pnl_middel_pr_handel_usd [CI95]", lambda r: f"{_f(r['pnl_middel_pr_handel_usd'], 3)} {_ci(r['CI95_lav'], r['CI95_hoej'], 3)}"),
-                      ("0_i_CI", lambda r: _f(r["nul_i_CI"]))]))
+    D.append(f"Nulmodellens selvtjek: realiseret middel-P&L pr. taget handel har 0 i 95%-CI i "
+             f"**{sum(x['nul_i_CI'] for x in nt)} af {len(nt)}** nul-celler (netto, begge brudmodeller). "
+             "Cellerne deler de samme uniforme træk, så de er ikke uafhængige tests.\n")
 
     if udp is not None:
         D.append("## Fordeling mod konstant\n")
         kk = res["konstant"]
         D.append(f"**{_celle(udp)}, WR 40%, netto, pessimistisk: `ruin_pct(fordeling) − ruin_pct(R fast "
-                 f"ved E[R])` = {_d(kk[('E[R]', 'pess')])} pp.** Samme forventning, samme stier, nul "
-                 f"spredning — forskellen skyldes fordelingens varians og intet andet.\n")
+                 f"ved E[R])` = {_d(kk[('E[R]', 'pess')])} pp.**\n")
         kr_ = res["konstant_raekker"]
         D.append(_md([
             {"n": "fordeling (primært vindue)", "r": udp, "d_p": None, "d_o": None},
@@ -1100,15 +1339,16 @@ def skriv_md(primaer: list[dict], res: dict, meta: dict) -> str:
             ("ruin_pct_netto_pess [CI95]", lambda r: _andel("ruin", "netto", "pess")(r["r"])),
             ("ruin_pct_netto_opt [CI95]", lambda r: _andel("ruin", "netto", "opt")(r["r"])),
             ("bestaa_pct_netto_pess", lambda r: _f(r["r"]["bestaa_pct_netto_pess"])),
+            ("uafgjort_pct_netto_pess", lambda r: _f(r["r"]["uafgjort_pct_netto_pess"])),
             ("ruin_pp_fordeling_minus_denne_pess [CI95]", lambda r: _d(r["d_p"])),
             ("ruin_pp_fordeling_minus_denne_opt [CI95]", lambda r: _d(r["d_o"]))]))
 
-    D.append("## Gitteret, 1 kontrakt, WR 40% absolut — primært vindue\n")
+    D.append("## Gitteret, 1 kontrakt, WR 40% absolut — primært vindue, 55%, 200 dage\n")
     D.append(_md(ved_40, KOL_CELLE + [("R_usd_middel", lambda r: _f(r["R_usd_middel"])),
                                       ("be_WR_pct_ved_middel_R", lambda r: _f(r["be_WR_pct_ved_middel_R"]))]
                  + KOL_WR + KOL_UDFALD))
     for akse, titel in (("absolut", "absolut WR-akse"), ("relativ", "relativ WR-akse (be_WR + pp)")):
-        D.append(f"## Hele gitteret, {titel} — primært vindue\n")
+        D.append(f"## Hele gitteret, {titel} — 55%, 200 dage\n")
         D.append(_md([r for r in primaer if r["WR_akse"] == akse],
                      KOL_CELLE + [("WR_rolle", lambda r: r["WR_rolle"])] + KOL_WR + KOL_UDFALD))
 
@@ -1120,8 +1360,7 @@ def skriv_md(primaer: list[dict], res: dict, meta: dict) -> str:
                       else res["referencer"][vn]):
                 rr.append({**r, "_navn": navn})
         D.append(_md(rr, [("vindue", lambda r: r["_navn"])] + KOL_CELLE
-                     + [("ATR_pct_p90", lambda r: _f(r["ATR_pct_p90"], 4)),
-                        ("be_WR_pct_ved_middel_R", lambda r: _f(r["be_WR_pct_ved_middel_R"]))] + KOL_UDFALD))
+                     + [("ATR_pct_p90", lambda r: _f(r["ATR_pct_p90"], 4))] + KOL_UDFALD))
 
         D.append("## Følsomhed — udpeget celle, WR 40% absolut, netto\n")
         fs = res["foelsomhed"]
@@ -1134,65 +1373,33 @@ def skriv_md(primaer: list[dict], res: dict, meta: dict) -> str:
                           ("ruin_pct_netto_pess [CI95]", _andel("ruin", "netto", "pess")),
                           ("ruin_pct_netto_opt", lambda r: _f(r["ruin_pct_netto_opt"])),
                           ("bestaa_pct_netto_pess", lambda r: _f(r["bestaa_pct_netto_pess"])),
+                          ("uafgjort_pct_netto_pess", lambda r: _f(r["uafgjort_pct_netto_pess"]))] + KOL_DAGE + [
                           ("bestaa_pp_over_nulmodel_netto_pess [CI95]", _pp_nul("netto", "pess")),
                           ("K2_taerskel / K3 / K4", lambda r: " / ".join(r["_konklusion"].values()))]))
         D.append(("**Konklusionen skifter mellem slippage 0,5417 og 1,0 tick pr. side: C4 er "
                   "blokerende og skal måles før live.**" if res["C4_blokerende"]
                   else "Konklusionen (K2-tærskel, K3, K4) skifter ikke mellem slippage 0,5417 og 1,0 "
                        "tick pr. side.")
-                 + (" **Den skifter mellem spread 1,50 og 2,17 tick** — cellen afhænger af "
-                    "spreadmålingens ubekræftede antagelser." if res["spread_afhaengig"]
-                    else " Den skifter heller ikke mellem spread 1,50 og 2,17 tick.") + "\n")
+                 + (" **Den skifter mellem spread 1,50 og 2,17 tick.**" if res["spread_afhaengig"]
+                    else " Den skifter ikke mellem spread 1,50 og 2,17 tick.") + "\n")
 
-        D.append(f"## Referencerækker — 2 og 3 kontrakter på {udp['timeframe']}, primært vindue\n")
-        D.append("Referencer, ikke kandidater. 1 MNQ er gulvet.\n")
-        refk = [r for r in primaer if er(r, "absolut", "40") and r["timeframe"] == udp["timeframe"]]
+        D.append(f"## Referencerækker — 2 og 3 kontrakter på {udp['timeframe']}, WR 40% absolut\n")
+        refk = [r for r in ved_40 if r["timeframe"] == udp["timeframe"]]
         refk += [r for r in res["ref_kontrakter"] if er(r, "absolut", "40")]
-        D.append("WR 40% absolut. Begge WR-akser for alle tre stopbredder står i `mll_ruin_v2.csv`.\n")
         D.append(_md(refk, [("kontrakter", lambda r: _f(r["kontrakter"], 0))] + KOL_CELLE + KOL_WR
                      + KOL_UDFALD))
-    D.append("## §5a's ATR-tabel regnet om på primærvinduet\n")
-    D.append(f"NQ RTH og døgn, {fp.foerste_dato} til {fp.sidste_dato}. 1 MNQ, 1-ATR-stop. RTH regnet med "
-             f"${_f(o.i_alt_usd, 3)}, døgn med ${_f(e.i_alt_usd, 3)} (spread uden for RTH). Alle rækker i "
-             f"`mll_ruin_v2_atr.csv`.\n")
-    D.append(_md(res["atr_tabel"], [
-        ("timeframe", lambda r: r["timeframe"]), ("session", lambda r: r["session"]),
-        ("n_barer", lambda r: _f(r["n_barer"], 0)),
-        ("ATR_pct_p50", lambda r: _f(r["ATR_pct_p50"], 4)), ("ATR_pct_p90", lambda r: _f(r["ATR_pct_p90"], 4)),
-        ("ATR_pct_middel", lambda r: _f(r["ATR_pct_middel"], 4)),
-        ("R_usd_ved_ATR_p50", lambda r: _f(r["R_usd_ved_ATR_p50"])),
-        ("R_usd_ved_ATR_p90", lambda r: _f(r["R_usd_ved_ATR_p90"])),
-        ("R_usd_middel", lambda r: _f(r["R_usd_middel"])),
-        ("risiko_pct_af_MLL_netto_ved_ATR_p50", lambda r: _f(r["risiko_pct_af_MLL_netto_ved_ATR_p50"])),
-        ("risiko_pct_af_MLL_netto_ved_ATR_p90", lambda r: _f(r["risiko_pct_af_MLL_netto_ved_ATR_p90"])),
-        ("omk_R_ved_R_p50", lambda r: _f(r["omk_R_ved_R_p50"], 4)),
-        ("be_WR_pct_ved_R_p50", lambda r: _f(r["be_WR_pct_ved_R_p50"])),
-        ("be_WR_pct_ved_middel_R", lambda r: _f(r["be_WR_pct_ved_middel_R"]))]))
-    D.append("### Den gamle §5a til sammenligning\n")
-    D.append("Citeret fra `STRATEGI_PROPFIRM.md` §5a (2026-09-13): K3 2016-2026, NQ 29.138, $2,59 i "
-             "RTH og $2,80 uden for. `be_WR_pct_p50` dér er det der her hedder `be_WR_pct_ved_R_p50`. "
-             "Forskellen til tabellen ovenfor er vinduet, en omkostning $0,04 højere, og at §5a "
-             "regnede på ATR afrundet til tre decimaler.\n")
-    D.append(_md(GAMMEL_5A, [(k, (lambda kk: lambda r: r[kk])(k)) for k in GAMMEL_5A[0]]))
 
+    D.append("## ATR-tabellen\n")
+    D.append("Uændret fra v2 — ATR, R og risiko afhænger ikke af konsistensreglen. Se "
+             "`mll_ruin_v2.md` og `mll_ruin_v2_k55_atr.csv`.\n")
     D.append("## Hvad modellen ikke svarer på\n")
-    D.append("- **ATR på MNQ.** Fordelingen er målt på NQ. Instrumenttjekket blev fravalgt (ingen udgift) og står som antagelse.\n"
-             "- **Klumpning i tid.** Hver handel trækker sin ATR uafhængigt. Høje ATR'er der kommer i samme uge er ikke modelleret; handlerne er også uafhængige af hinanden i udfald.\n"
-             "- **Hvordan win rate ændrer sig med stopbredden** (vej 2). Derfor både absolut og relativ WR-akse.\n"
-             "- **Vejen inde i en handel.** Derfor to brudmodeller. Stoppet antages ramt præcist; slippage indgår kun som middelomkostning.\n"
-             "- **Spor B.** Målfunktionen er Combine: nå $3.000 før ruin. XFA og LFA er ikke modelleret.\n"
-             f"- **Censurering.** Stier der hverken består eller ruinerer inden {MAX_DAYS} handelsdage står som uafgjort.\n")
+    D.append("- **ATR på MNQ.** Fordelingen er målt på NQ; instrumentet står som antagelse.\n"
+             "- **Klumpning i tid.** ATR og udfald trækkes uafhængigt pr. handel.\n"
+             "- **Hvordan win rate ændrer sig med stopbredden** (vej 2). Derfor to akser, og derfor låser kun begge.\n"
+             "- **Vejen inde i en handel.** To brudmodeller; slippage kun som middelomkostning.\n"
+             "- **Spor B.** Kun Combine er modelleret. XFA-brud er permanente, Combine-brud kræver Reset (`REGLER_VERIFICERET.md`).\n"
+             f"- **Tid.** Horisonten er {MAX_DAYS} handelsdage. Uafgjorte stier er ikke bestået *endnu*.\n")
     return "\n".join(D)
-
-
-# Citeret fra STRATEGI_PROPFIRM.md §5a, 2026-09-13 — kun til sammenligning i rapporten.
-GAMMEL_5A = [
-    {"timeframe": "1m", "session": "RTH", "ATR_pct_p50": "0,057", "ATR_pct_p90": "0,123", "R_usd_p50": "33,22", "R_usd_p90": "71,68", "risiko_pct_af_MLL_p50": "1,79", "risiko_pct_af_MLL_p90": "3,71", "omk_R_p50": "0,0780", "be_WR_pct_p50": "35,93"},
-    {"timeframe": "3m", "session": "RTH", "ATR_pct_p50": "0,101", "ATR_pct_p90": "0,210", "R_usd_p50": "58,86", "R_usd_p90": "122,38", "risiko_pct_af_MLL_p50": "3,07", "risiko_pct_af_MLL_p90": "6,25", "omk_R_p50": "0,0440", "be_WR_pct_p50": "34,80"},
-    {"timeframe": "5m", "session": "RTH", "ATR_pct_p50": "0,132", "ATR_pct_p90": "0,271", "R_usd_p50": "76,92", "R_usd_p90": "157,93", "risiko_pct_af_MLL_p50": "3,98", "risiko_pct_af_MLL_p90": "8,03", "omk_R_p50": "0,0337", "be_WR_pct_p50": "34,46"},
-    {"timeframe": "15m", "session": "RTH", "ATR_pct_p50": "0,232", "ATR_pct_p90": "0,459", "R_usd_p50": "135,20", "R_usd_p90": "267,49", "risiko_pct_af_MLL_p50": "6,89", "risiko_pct_af_MLL_p90": "13,50", "omk_R_p50": "0,0192", "be_WR_pct_p50": "33,97"},
-    {"timeframe": "15m", "session": "døgn", "ATR_pct_p50": "0,132", "ATR_pct_p90": "0,296", "R_usd_p50": "76,92", "R_usd_p90": "172,50", "risiko_pct_af_MLL_p50": "3,99", "risiko_pct_af_MLL_p90": "8,76", "omk_R_p50": "0,0364", "be_WR_pct_p50": "34,55"},
-]
 
 
 # ---------------------------------------------------------------------------
@@ -1201,13 +1408,16 @@ GAMMEL_5A = [
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("koersel", choices=["k1", "gitter"])
+    ap.add_argument("koersel", choices=["k1", "k1v2", "gitter"])
     ap.add_argument("--paths", type=int, default=N_PATHS)
     args = ap.parse_args()
     if args.koersel == "k1":
         res = k1(args.paths)
         print(json.dumps({**res.__dict__, "holdt": res.holdt}, indent=2))
         print(f"skrev {K1_UD} og {K1_RESUME}")
+    elif args.koersel == "k1v2":
+        print(json.dumps(k1_v2(args.paths), indent=2, ensure_ascii=False))
+        print(f"skrev {K1V2_UD} og {K1V2_RESUME}")
     else:
         gitter(args.paths)
 
