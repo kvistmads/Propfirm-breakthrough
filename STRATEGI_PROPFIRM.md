@@ -613,11 +613,14 @@ Bogstavet er fasen, tallet er rækkefølgen inden for fasen.
 | C3 | Fallback når Telegram er nede |
 | C4 | Slippage på stops, målt |
 | C5 | Eksplicit regel i koden når MLL nærmer sig |
-| C6 | Hvad koster markedsdata på LFA? |
+| ~~C6~~ | ~~Hvad koster markedsdata på LFA?~~ **Lukket 2026-09-13:** $133 pr. børs pr. måned, professionel takst (`REGLER_VERIFICERET.md` §5) |
 | C7 | **Afvigelse mellem backtest-serien og TopstepX' feed**, målt (§7) |
 | C8 | **Fladningsreglen i kode.** Reglen er besluttet (§3): sidste indgang 14:30 CT, hård udfladning 14:50 CT, genforsøg, alarm 15:00 CT, alt regnet i America/Chicago, fladt bekræftet mod brokerens positionsopgørelse. **Implementeringen mangler**, og det gør adfærden når Macen er offline på fladningstidspunktet |
 | C10 | **Hvad koster indgangsstoppet 14:30 CT?** 7,7% af RTH-sessionen fravælges. Måles mod en rigtig strategi, ikke besluttet på forhånd |
 | C9 | **Opdatér `config.yaml` med målt spread** — 1,73 tick i RTH, 2,17 uden for. Skønnet 1,50 står der stadig |
+| C11 | **Nyhedsfilter.** Maksimal position ind i planlagte større nyheder er forbudt hos Topstep. Botten skal kende den økonomiske kalender og size ned. Handel under nyheder er tilladt |
+| C12 | **Én konto ad gangen.** Kryds-konto-hedging, koordineret handel og account stacking er forbudt |
+| C13 | **Auto-breakeven** er nævnt eksplicit i Topsteps SIM-fill-regler som en teknik de slår ned på. Vores frekvens er langt under tærsklen, men teknikken skal ikke bruges blindt |
 
 ---
 
