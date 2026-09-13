@@ -113,6 +113,32 @@ class TestAndele:
     def test_diff_interval_uden_data(self):
         assert stats.proportion_diff_interval(0, 0, 5, 10) == (-1.0, 1.0)
 
+    def test_parret_interval_er_det_uparrede_naar_phi_er_nul(self):
+        """a=b=c=d giver ad − bc = 0 → φ = 0 → samme interval som to uafhængige andele."""
+        parret = stats.paired_proportion_diff_interval(50, 50, 50, 50)
+        uparret = stats.proportion_diff_interval(100, 200, 100, 200)
+        assert parret == pytest.approx(uparret)
+
+    def test_parret_interval_indeholder_estimatet_og_er_smallere_ved_positiv_korrelation(self):
+        a, b, c, d = 14_000, 600, 400, 5_000
+        n = a + b + c + d
+        lo, hi = stats.paired_proportion_diff_interval(a, b, c, d)
+        assert lo < (b - c) / n < hi
+        ulo, uhi = stats.proportion_diff_interval(a + b, n, a + c, n)
+        assert (hi - lo) < 0.5 * (uhi - ulo)
+
+    def test_parret_interval_naer_wald_ved_stort_n(self):
+        a, b, c, d = 14_000, 600, 400, 5_000
+        n = a + b + c + d
+        theta = (b - c) / n
+        se = math.sqrt((b + c) - (b - c) ** 2 / n) / n
+        lo, hi = stats.paired_proportion_diff_interval(a, b, c, d)
+        assert lo == pytest.approx(theta - 1.96 * se, abs=2e-4)
+        assert hi == pytest.approx(theta + 1.96 * se, abs=2e-4)
+
+    def test_parret_interval_uden_data(self):
+        assert stats.paired_proportion_diff_interval(0, 0, 0, 0) == (-1.0, 1.0)
+
 
 class TestStyrke:
     def test_matcher_prd_ens_1566_handler(self):
