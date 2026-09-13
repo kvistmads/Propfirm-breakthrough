@@ -134,3 +134,117 @@ nogen af de tre mellem slippage 0,5417 og 1,0, er **C4 blokerende**. Skifter nog
   kolonner som §5a plus `R_usd_middel`, `be_WR_pct_ved_middel_R` og `be_WR_pct_ved_R_p50`.
   Døgnrækker regnes med rundturen uden for RTH ($2,847). Den gamle tabel står ved siden af.
 - **Chatten:** kun rækkerne med 1 kontrakt ved WR 40% absolut.
+
+---
+
+# Tillæg 2026-09-13 — konsistens 55% og låsekriterium
+
+**Skrevet før tillægskørslen og committet før den.** Fasen er ikke genåbnet; cellen er ikke
+låst. Anledning: `REGLER_VERIFICERET.md` §3 (verificeret 2026-09-13) viser at konsistensreglen
+er **55%**, ikke 50%. Modellen har været strengere end virkeligheden i v1 og v2. Grundlag:
+Mads' instruks og svar i fasesessionen 2026-09-13. Hvor noget er fasesessionens præcisering,
+står det.
+
+**Afsnit 1-8 ovenfor gælder uændret**, bortset fra det dette tillæg erstatter: v2's
+robusthedstjek på den relative akse ("artefakt") erstattes af låsekriteriets anden aflæsning.
+
+## T1. Rettelsen
+
+- `bestået ⇔ samlet profit ≥ max(3.000, bedste_dag / 0,55)`. Topsteps eksempel: bedste dag
+  $1.650 ÷ 0,55 = $3.000. v1 og v2 krævede bedste dag ≤ $1.500.
+- **Alt andet uændret:** 200 handelsdages horisont, 20.000 parrede stier, seed 20260909,
+  vinduer, NQ-niveau, omkostning, WR-akser, v2's valgregel og hele v2-pipelinen (K2-K5,
+  referencevinduer, fordeling mod konstant, følsomhed, 2 og 3 kontrakter, ATR-tabel).
+  v2's valgregel udpeger stadig den celle K4, K5, følsomheden og konstant-sammenligningen
+  køres på. Om cellen **låses**, afgøres af T3.
+- Rettelsen er ikke neutral for rangeringen: en løsere konsistensregel hjælper mest de celler
+  der laver store enkeltdage, altså den brede ende.
+
+## T2. K1 mod v2
+
+Den nye kode køres med **konsistens 0,50 og 200 dage** og holdes op mod v2-kørslen
+(`research/output/mll_ruin_v2.csv`, commit `594b61b`), række for række over alle 154 rækker.
+
+| holdt | ikke holdt |
+|---|---|
+| hver andel (bestået, ruin, uafgjort × netto/brutto × begge brudmodeller) ligger inden for v2's Wilson-CI, og alle deterministiske kolonner er ens | ellers. **Så køres 55%-gitteret ikke** |
+
+Forventet: identisk, fordi kun konsistensparameteren er ændret, og koden er deterministisk.
+Antal identiske tal rapporteres. Tillægskørslen nægter at starte hvis K1 mod v2 ikke holdt
+på præcis den kode der kører (sha256).
+
+## T3. Låsekriteriet
+
+To aflæsninger, **begge ved 55% konsistens og 200 dages horisont**:
+
+| # | aflæsning |
+|---|---|
+| 1 | Absolut akse, WR 40% |
+| 2 | Relativ akse, be_WR + 6 pp |
+
+- **Feltet** er det samme i begge: alle celler med 1 kontrakt der klarer K3-filteret
+  (`risiko_pct_af_MLL_netto_ved_ATR_p90 ≤ 10`). Kolonnen afhænger hverken af konsistensreglen
+  eller horisonten; at feltet er det samme som i v2 (10 af 12) bekræftes i rapporten.
+- **Målet** er `bestaa_pct_netto_pess`, som i v2's valgregel.
+- **Nummer to** er den bedste anden celle i feltet i netop den aflæsning. Den kan være en
+  anden celle på de to akser.
+- **Streng regel.** 15m / 0,50 ATR består en aflæsning kun hvis den (a) har højeste
+  punktestimat i feltet og (b) forskellen til nummer to har et parret 95%-CI der ligger over
+  nul. Er den ikke forrest på punktestimatet, fejler den straks. Er den forrest, men CI'et
+  krydser nul, er aflæsningen uafgjort, og **uafgjort tæller som ikke låst**.
+- **Låst** kun hvis begge aflæsninger består.
+- **Ellers er fasens svar risikobåndet 6-7% af MLL ved p90, ikke én celle.** Timeframen
+  afgøres da i B4 på edge-grunde, og stoppet sættes så risikoen lander i båndet.
+
+## T4. 500 dage — diagnose, ikke kriterium
+
+**Hvorfor 500 dage ikke låser.** Med positiv forventning falder ruinsandsynligheden monotont
+med indsatsens størrelse, så en tilstrækkeligt lang horisont vil altid rangere de mindste
+celler øverst (gambler's ruin). Udfaldet kan forudsiges uden at køre noget, og en aflæsning
+med kendt udfald kan ikke være et kriterium. Combine har ingen tidsgrænse (`REGLER_VERIFICERET.md`
+§3), så horisonten er et budget, ikke en regel: 200 handelsdage er cirka ti måneder og
+$490-950 i abonnement. "Uafgjort" betyder "ikke bestået endnu", ikke "ikke bestået".
+
+Kørsel: hele gitteret med 1 kontrakt (12 celler, begge WR-akser, netto og brutto, begge
+brudmodeller, nulmodel) ved 55% konsistens og **500 dage**. Rapporteres:
+
+- `bestaa_pct` ved 500 dage med `uafgjort_pct`
+- `dage_til_bestaa_p50` og `dage_til_bestaa_p90` ved begge horisonter
+- rangeringen af `bestaa_pct` på begge akser — rapporteret, ikke selvtjekket
+
+## T5. Selvtjek: monotoni i ruin
+
+- **Tjekket:** `ruin_pct_netto_pess` skal stige monotont med
+  `risiko_pct_af_MLL_netto_ved_ATR_p90` på den **relative akse** (be_WR + 6 pp), ved **både
+  200 og 500 dage**. Alle 12 celler med 1 kontrakt.
+- **Brud** = et par celler (i, j) med lavere risiko i end j, men højere ruin i end j, hvor
+  forskellens parrede 95%-CI udelukker nul. Alle 66 par tjekkes. Omvendte par på
+  punktestimat alene tælles og rapporteres, men er ikke brud.
+- **Fund:** ét afgjort brud ved en af horisonterne er et fund der skal undersøges før noget
+  låses. 200-dages-tjekket er det vigtigste, fordi låsningen bygger på den horisont.
+- **Censurering flages:** celler med `uafgjort_pct_netto_pess ≥ 50` markeres som stærkt
+  censureret i tabellen (*fasesessionens præcisering af tærsklen*). Det bryder ikke tjekket.
+- **Identiteten** skrives i rapporten: ved gevinst/tab-forhold r og win rate be_WR + δ er
+  forventningen pr. handel δ·(r+1) i R, uafhængigt af cellen. Ved 2:1 og δ = 6 pp er det
+  0,18 R overalt. Derfor er den relative akse den kanoniske "samme edge"-akse og den eneste
+  hvor gambler's ruin-argumentet gælder. Den absolutte akse må ikke bruges til en teoretisk
+  sammenligning; dér varierer forventningen fra ~0,08 R til ~0,18 R.
+
+## T6. Rapportering
+
+- `uafgjort_pct` i alle tabeller med udfald, også i chatten.
+- `dage_til_bestaa_p50` og `dage_til_bestaa_p90` for alle celler, betinget af at stien består.
+  Abonnementet koster $49-95 om måneden, så en langsom bestået er en dyrere bestået.
+
+## T7. Overblikssessionens forudsigelser, skrevet før kørslen
+
+I den rækkefølge de blev givet:
+
+1. *Første instruks:* "5m/0,75 overtager ved 500 dage. Konsistensrettelsen trækker den anden
+   vej, så nettoresultatet ved 200 dage er ukendt."
+2. Ved 500 dage rangerer feltet monotont faldende i risiko, med 3m/0,50 eller 1m/0,75 øverst.
+3. Ved 200 dage og 55% konsistens forbliver 15m/0,50 øverst på den absolutte akse.
+4. På den relative akse ved 200 dage vinder 5m/0,75 — ukendt om forskellens CI udelukker nul.
+5. **Låsningen fejler, og båndet bliver svaret.**
+6. Ruin er monoton stigende i risiko på den relative akse ved begge horisonter, uden afgjorte
+   brud.
