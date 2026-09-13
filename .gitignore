@@ -11,3 +11,4 @@ data/cache/
 # Detaljeudtræk med priser pr. dag og pr. bar — samme grund.
 research/output/fase1_k2_dage_*.csv
 research/output/fase1_bar_for_bar_*.csv
+.DS_Store
