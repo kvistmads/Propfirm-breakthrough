@@ -1,0 +1,16 @@
+{
+  "n_raekker_v2": 154,
+  "n_raekker_mangler": 0,
+  "n_tal": 11404,
+  "n_identiske": 11404,
+  "n_andele": 1848,
+  "n_andele_inden_for_CI": 1848,
+  "max_afvigelse_andele_pp": 0.0,
+  "deterministiske_ok": true,
+  "holdt": true,
+  "n_stier": 20000,
+  "konsistens": 0.5,
+  "horisont_dage": 200,
+  "reference": "research/output/mll_ruin_v2.csv (commit 594b61b)",
+  "kode_sha256": "c34ca132adaa463f31d5f62bc30be939ac2d05e82f86f99bf5eeb05aab380cb8"
+}
