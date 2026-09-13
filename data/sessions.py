@@ -40,6 +40,12 @@ def rth_mask(index: pd.DatetimeIndex, bar_minutes: int) -> np.ndarray:
         return np.zeros(0, dtype=bool)
     et_dag = index.tz_convert(ET).tz_localize(None).normalize()
     plan = _xnys().schedule
+    # exchange_calendars dækker kørselsdato −20/+1 år. Uden for vinduet ville alle barer
+    # tavst blive ETH — et resultat der ligner et resultat. Fase 1-efterskrift 1.2.
+    if et_dag.min() < plan.index[0] or et_dag.max() > plan.index[-1]:
+        raise ValueError(
+            f"XNYS-kalenderen dækker {plan.index[0].date()} → {plan.index[-1].date()}, "
+            f"serien spænder {et_dag.min().date()} → {et_dag.max().date()} (ET)")
     aabner = pd.DatetimeIndex(plan["open"].reindex(et_dag))
     lukker = pd.DatetimeIndex(plan["close"].reindex(et_dag))
     slut = index + pd.Timedelta(minutes=bar_minutes)

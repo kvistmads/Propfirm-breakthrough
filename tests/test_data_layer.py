@@ -127,6 +127,17 @@ def test_nyse_holidays_have_no_rth_even_though_futures_trade():
     assert not _rth("2026-08-29 15:00")      # lørdag
 
 
+def test_rth_mask_fejler_uden_for_kalenderens_vindue():
+    """Uden for exchange_calendars' vindue ville alt tavst blive ETH — nu en fejl."""
+    plan = sessions._xnys().schedule
+    foer = plan.index[0] - pd.Timedelta(days=30) + pd.Timedelta(hours=15)
+    efter = plan.index[-1] + pd.Timedelta(days=30) + pd.Timedelta(hours=15)
+    for ts in (foer, efter):
+        idx = pd.DatetimeIndex([ts.tz_localize("UTC"), _ts("2026-08-26 13:30")])
+        with pytest.raises(ValueError, match=r"XNYS-kalenderen dækker .* serien spænder"):
+            sessions.rth_mask(idx, 1)
+
+
 def test_globex_day_starts_at_1800_new_york():
     idx = pd.DatetimeIndex([_ts("2026-08-26 20:59"), _ts("2026-08-26 22:00"),
                             _ts("2026-08-30 22:00")])
