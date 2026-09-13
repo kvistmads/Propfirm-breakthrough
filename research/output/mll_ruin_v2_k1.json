@@ -1,0 +1,10 @@
+{
+  "n_sammenligninger": 432,
+  "n_inden_for_CI": 432,
+  "n_identiske": 411,
+  "max_afvigelse_pp": 0.02,
+  "deterministiske_ok": true,
+  "holdt": true,
+  "n_stier": 20000,
+  "kode_sha256": "69e4cc6cfd60d65584fa43df65a5ab159548300d2680e56d3e61d798872aea7c"
+}
