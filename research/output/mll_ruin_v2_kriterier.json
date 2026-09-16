@@ -1,0 +1,109 @@
+{
+  "K1": {
+    "holdt": true,
+    "n_sammenligninger": 432,
+    "n_inden_for_CI": 432,
+    "n_identiske": 411,
+    "max_afvigelse_pp": 0.02
+  },
+  "K2": {
+    "status": "holdt",
+    "celler_med_oevre_CI_under_20": [
+      "15m / 0,50 ATR",
+      "5m / 0,75 ATR",
+      "5m / 0,50 ATR",
+      "3m / 1,00 ATR",
+      "3m / 0,75 ATR",
+      "3m / 0,50 ATR",
+      "1m / 1,00 ATR",
+      "1m / 0,75 ATR",
+      "1m / 0,50 ATR"
+    ]
+  },
+  "valg": {
+    "valgt": "15m / 0,50 ATR",
+    "nummer_to": "5m / 0,75 ATR",
+    "diff_pp": [
+      1.1649999999999938,
+      0.8121467805931606,
+      1.5183663361124562
+    ],
+    "uafgjort": false,
+    "tiebreak": false,
+    "udpeget": "15m / 0,50 ATR",
+    "maks_uden_K3": "15m / 0,50 ATR",
+    "maks_diff_pp": null,
+    "valgt_relativ_be+6": "5m / 0,75 ATR"
+  },
+  "K3": "holdt",
+  "K4": {
+    "status": "holdt",
+    "diff_pp": [
+      2.875,
+      2.6446280454458773,
+      3.1088658854932714
+    ]
+  },
+  "K5": {
+    "status": "holdt",
+    "grund": "forskellens CI ligger over nul",
+    "diff_pp": [
+      6.35,
+      5.959967452693966,
+      6.742309048547118
+    ]
+  },
+  "fordeling_mod_konstant_ruin_pp": {
+    "E[R]|opt": [
+      7.135,
+      6.702741880545189,
+      7.572213402970503
+    ],
+    "E[R]|pess": [
+      8.515,
+      8.052018857435405,
+      8.982222534072969
+    ],
+    "R_p50|opt": [
+      9.745000000000001,
+      9.297804297922205,
+      10.1993533329485
+    ],
+    "R_p50|pess": [
+      11.684999999999999,
+      11.20118651251023,
+      12.174963318563945
+    ]
+  },
+  "C4_blokerende": true,
+  "spread_afhaengig": false,
+  "foelsomhed": {
+    "basis": {
+      "K2_taerskel": "holdt",
+      "K3": "holdt",
+      "K4": "holdt"
+    },
+    "slippage 0": {
+      "K2_taerskel": "holdt",
+      "K3": "holdt",
+      "K4": "holdt"
+    },
+    "slippage 1,0": {
+      "K2_taerskel": "uafgjort",
+      "K3": "holdt",
+      "K4": "holdt"
+    },
+    "spread 1,50": {
+      "K2_taerskel": "holdt",
+      "K3": "holdt",
+      "K4": "holdt"
+    },
+    "spread 2,17": {
+      "K2_taerskel": "holdt",
+      "K3": "holdt",
+      "K4": "holdt"
+    }
+  },
+  "nulmodel_selvtjek_alle_nul_i_CI": true,
+  "commit": "594b61b"
+}

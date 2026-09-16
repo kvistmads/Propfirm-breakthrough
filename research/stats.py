@@ -190,6 +190,39 @@ def proportion_diff_interval(
     return (max(-1.0, lower), min(1.0, upper))
 
 
+def paired_proportion_diff_interval(
+    a: int, b: int, c: int, d: int, z: float = Z_95
+) -> tuple[float, float]:
+    """Newcombes hybrid score-interval for p1 - p2 på PARREDE observationer (metode 10).
+
+    Firefeltstabellen over de samme n enheder: a = begge succes, b = kun den første,
+    c = kun den anden, d = ingen. p1 = (a+b)/n, p2 = (a+c)/n.
+
+    Som ``proportion_diff_interval`` bygget på de to Wilson-intervaller, men med
+    korrelationen φ mellem de to målinger trukket fra — samme enheder giver fælles
+    støj, og den skal ikke tælle to gange. φ's tæller korrigeres med n/2 når ad > bc
+    (Newcombe 1998, Stat Med 17:2635). φ = 0 giver det uparrede interval.
+    """
+    n = a + b + c + d
+    if n == 0:
+        return (-1.0, 1.0)
+    p1, p2 = (a + b) / n, (a + c) / n
+    l1, u1 = wilson_interval(a + b, n, z)
+    l2, u2 = wilson_interval(a + c, n, z)
+    naevner = (a + b) * (c + d) * (a + c) * (b + d)
+    if naevner == 0:
+        phi = 0.0
+    else:
+        taeller = a * d - b * c
+        if taeller > 0:
+            taeller = max(taeller - n / 2, 0.0)
+        phi = taeller / math.sqrt(naevner)
+    theta = p1 - p2
+    delta = math.sqrt(max(0.0, (p1 - l1) ** 2 - 2 * phi * (p1 - l1) * (u2 - p2) + (u2 - p2) ** 2))
+    eps = math.sqrt(max(0.0, (u1 - p1) ** 2 - 2 * phi * (u1 - p1) * (p2 - l2) + (p2 - l2) ** 2))
+    return (max(-1.0, theta - delta), min(1.0, theta + eps))
+
+
 # z for 80% styrke (ensidet beta=0.20). Sammen med Z_95 giver de standardparret
 # til to-andels-styrkeberegningen nedenfor.
 Z_POWER_80 = 0.8416212335729143

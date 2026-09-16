@@ -86,13 +86,15 @@ ROLL_WINDOW_DAYS = 5
 
 
 def omk_usd_rundtur(config: dict | None = None, price: float = 30_000.0) -> float:
-    """Rundturen i USD for 1 MNQ, afledt af backtest.costs — ikke hardkodet."""
+    """Rundturen i USD for 1 MNQ i RTH, afledt af backtest.costs — ikke hardkodet.
+
+    Fase 2: slippage er nu den realiserede middelværdi (0,5417 tick/side), ikke
+    parameteren 0,50. Fase 1's tabeller er regnet med den gamle definition og $2,47.
+    ``price`` er uden betydning i ``mode: contract`` og bevares for bagudkompatibilitet.
+    """
     if config is None:
         config = yaml.safe_load((ROOT / "config.yaml").read_text())
-    params = costs._asset_costs(config, "MNQ")
-    spread, slip_mean, _, commission = costs.cost_fractions(params, price)
-    notional = float(params["contract_multiplier"]) * price
-    return (spread + 2 * slip_mean + commission) * notional
+    return costs.rundtur_dekomponering(config, "MNQ", sessions.RTH).i_alt_usd
 
 
 # ---------------------------------------------------------------------------

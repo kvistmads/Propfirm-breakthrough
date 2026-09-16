@@ -130,8 +130,21 @@ backtest:
       MNQ:                      # CME Micro E-mini Nasdaq-100: 2 USD/indekspoint, tick 0,25 = 0,50 USD
         tick_size: 0.25
         contract_multiplier: 2
-        spread_ticks: 1.5       # SKOEN, RTH - ikke maalt. Aabent spoergsmaal 6
+        # MÅLT 2026-09-11, fase 1: Databento MNQ.v.0 bbo-1s, 92 dage 2019-2026
+        # (research/output/spread_mnq.md). Forbehold: hviler på to ubekræftede antagelser
+        # om bbo-formatet, og ~7% af sekunderne mangler en record.
+        # apply_costs kender ikke sessionen og bruger kun spread_ticks (RTH) — botten
+        # handler i RTH. spread_ticks_uden_for_rth læses kun af costs.rundtur_dekomponering.
+        spread_ticks: 1.73                # MÅLT 2026-09-11, RTH
+        spread_ticks_uden_for_rth: 2.17   # MÅLT 2026-09-11, uden for RTH
         commission_usd_round_turn: 1.22   # TopstepX verificeret 2026-09-09: 0,50 kurtage + 0,71 boers + 0,01 NFA
+        # SKØN, ikke målt. slippage_mean/std er PARAMETRE i N(μ, σ) pr. side FØR
+        # afskæring ved nul. Afskæringen løfter middelværdien, og den tillader aldrig
+        # gunstig slippage. Det koden faktisk realiserer står i linjen under og
+        # holdes op mod costs.slippage_realiseret af tests/test_costs.py.
+        slippage_mean_ticks: 0.5
+        slippage_std_ticks: 0.5
+        slippage_realiseret_ticks_pr_side: 0.5417   # SKØN. E[max(0, N(0,5; 0,5))]
 
 notifications:
   telegram:

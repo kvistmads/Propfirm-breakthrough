@@ -31,6 +31,7 @@ slå op, og et tal der ser præcist ud ville være værre end et ærligt skøn.
 
 from __future__ import annotations
 
+import math
 import zlib
 from dataclasses import dataclass
 
@@ -182,18 +183,97 @@ def apply_costs_to_trades(trades: list[dict], config: dict, strategy_id: str,
     return trades
 
 
+def slippage_realiseret(mean: float, std: float) -> float:
+    """Middelværdien af det ``apply_costs`` faktisk trækker pr. side: E[max(0, X)].
+
+    X ~ N(mean, std) afskæres ved nul, og afskæringen løfter middelværdien:
+
+        E[max(0, X)] = μ·Φ(μ/σ) + σ·φ(μ/σ)
+
+    Ved μ = σ = 0,5 tick er den 0,5417 tick — ikke 0,50. Enheden følger inputtet.
+    Gunstig slippage er udelukket af afskæringen; det er en antagelse, ikke en måling.
+    """
+    if std <= 0:
+        return max(0.0, mean)
+    z = mean / std
+    cdf = 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+    pdf = math.exp(-0.5 * z * z) / math.sqrt(2.0 * math.pi)
+    return mean * cdf + std * pdf
+
+
+# Status pr. led, som i ANTAGELSER.md: V verificeret, M målt, S skøn.
+RUNDTUR_STATUS = {"kommission": "V", "spread": "M", "slippage": "S"}
+
+
+@dataclass(frozen=True)
+class Rundtur:
+    """Rundturens omkostning for én kontrakt, led for led, i USD.
+
+    Spread er én fuld spread pr. rundtur (halv ved entry, halv ved exit). Slippage er
+    den REALISEREDE middelværdi pr. side gange to sider — ikke fordelingens parameter.
+    """
+
+    session: str
+    kommission_usd: float
+    spread_ticks: float
+    spread_usd: float
+    slippage_ticks_pr_side: float
+    slippage_usd: float
+
+    @property
+    def i_alt_usd(self) -> float:
+        return self.kommission_usd + self.spread_usd + self.slippage_usd
+
+
+def rundtur_dekomponering(config: dict, symbol: str = "MNQ", session: str = "RTH",
+                          spread_ticks: float | None = None,
+                          slippage_ticks_pr_side: float | None = None) -> Rundtur:
+    """Kommission + spread + realiseret slippage for én kontrakt i ``mode: contract``.
+
+    ``session`` "RTH" bruger ``spread_ticks``; alt andet bruger
+    ``spread_ticks_uden_for_rth`` hvis den findes. ``apply_costs`` kender ikke sessionen
+    og bruger altid ``spread_ticks`` (RTH) — botten handler i RTH.
+
+    ``spread_ticks`` og ``slippage_ticks_pr_side`` overskriver konfigurationen. Det er
+    til følsomhedsregning; slippage angives da som realiseret middelværdi pr. side.
+    """
+    params = _asset_costs(config, symbol)
+    if params is None or params.get("mode") != "contract":
+        raise ValueError(f"{symbol}: ingen kontraktbaseret omkostningsmodel i config")
+    tick_usd = float(params["tick_size"]) * float(params["contract_multiplier"])
+    if spread_ticks is None:
+        noegle = "spread_ticks" if session == "RTH" else "spread_ticks_uden_for_rth"
+        spread_ticks = float(params.get(noegle, params.get("spread_ticks", 0.0)))
+    if slippage_ticks_pr_side is None:
+        slippage_ticks_pr_side = slippage_realiseret(
+            float(params.get("slippage_mean_ticks", 0.0)),
+            float(params.get("slippage_std_ticks", 0.0)))
+    return Rundtur(
+        session=session,
+        kommission_usd=float(params.get("commission_usd_round_turn", 0.0)),
+        spread_ticks=spread_ticks,
+        spread_usd=spread_ticks * tick_usd,
+        slippage_ticks_pr_side=slippage_ticks_pr_side,
+        slippage_usd=2.0 * slippage_ticks_pr_side * tick_usd,
+    )
+
+
 def cost_summary(config: dict, symbol: str, price: float) -> dict:
-    """Omkostningsopdeling i basispunkter ved en given pris — til rapportering."""
+    """Omkostningsopdeling i basispunkter ved en given pris — til rapportering.
+
+    Slippage er den realiserede middelværdi efter afskæring ved nul, ikke parameteren.
+    """
     params = _asset_costs(config, symbol)
     if params is None:
         return {}
-    spread, slip_mean, _, commission = cost_fractions(params, price)
+    spread, slip_mean, slip_std, commission = cost_fractions(params, price)
+    slip = slippage_realiseret(slip_mean, slip_std)
     return {
         "symbol": symbol,
         "asset_class": BaseStrategy.get_asset_class(symbol),
         "price": price,
         "spread_bp": round(spread * 10_000, 3),
-        "slippage_bp": round(2 * slip_mean * 10_000, 3),  # entry + exit
+        "slippage_bp": round(2 * slip * 10_000, 3),  # entry + exit
         "commission_bp": round(commission * 10_000, 3),
-        "total_bp": round((spread + 2 * slip_mean + commission) * 10_000, 3),
+        "total_bp": round((spread + 2 * slip + commission) * 10_000, 3),
     }
