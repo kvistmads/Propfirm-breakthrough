@@ -1,13 +1,20 @@
 # Propfirm-sporet
 
-**Status:** 2026-09-13. **Fase 1 er kørt.** Der er MNQ-data i repoet fra 2019-05-06,
-ATR er målt som fordeling pr. timeframe og session, spread er målt, og K1-K4 holdt.
-**A1-A6 og B1-B3 er besvaret.** §5 er skrevet om på de målte tal og **sizing-valget er
-genåbnet** — det gamle valg stod på et ATR-tal der var for lavt. Ingen konto åbnet, ingen
-strategi bygget, ingen edge fundet.
+**Status:** 2026-09-13. **Fase 1 og 2 er kørt og lukket.** Der er NQ- og MNQ-data i repoet
+fra 2019-05-06, ATR er målt som fordeling, spread er målt, ruinmodellen kører på
+fordelingen i stedet for et punktestimat, og alle Topstep-regler er verificeret ordret hos
+primærkilden. **A1-A7, B1-B3 og B6 er besvaret.**
 
-Søsterdokumenter: `ANTAGELSER.md` (hvilke tal er verificeret og hvilke er gæt),
-`PRD_FASE2_RUINMODEL.md` (næste fase), `PRD_FASE1_DATAGRUNDLAG.md` (kørt),
+**Sizing er afgjort som et bånd, ikke en celle: 6,4-7,1% af MLL ved p90 med 1 MNQ** (§5).
+Timeframen afgøres i B4 på edge-grunde.
+
+**Næste fase er B4 — edge-hypotesen.** Det er projektets egentlige opgave, og alt hidtil
+har bygget måleapparatet til den. Ingen konto åbnet, ingen strategi bygget, ingen edge
+fundet.
+
+Søsterdokumenter: **`REGLER_VERIFICERET.md`** (hver regel med ordret citat og link — går
+forud for dette dokument ved uenighed), `ANTAGELSER.md` (målinger, skøn og
+modelantagelser), `PRD_FASE1_DATAGRUNDLAG.md` og `PRD_FASE2_RUINMODEL.md` (kørt),
 `STRATEGI_TSMOM.md`, `STRATEGI_DAYTRADING.md`.
 
 ---
@@ -84,8 +91,13 @@ væsentlige forskel, og den har konsekvenser helt ned i valget af timeframe (§5
 
 ## 3. Topsteps tre trin
 
-Verificeret 2026-09-09/10. **Vi talte hidtil om "eval" og "funded" som to trin. Der er
-tre, og de har fundamentalt forskellig risikogeometri.**
+> **Reglerne står i `REGLER_VERIFICERET.md`, ikke her.** Det dokument har hver regel med
+> ordret citat og link, verificeret hos primærkilden 2026-09-13. Dette afsnit er et
+> sammendrag til læsning — **er de to uenige, gælder `REGLER_VERIFICERET.md`.**
+> Gennemgangen 2026-09-13 rettede tolv fejl, hvoraf to stod som verificerede her.
+
+**Vi talte hidtil om "eval" og "funded" som to trin. Der er tre, og de har fundamentalt
+forskellig risikogeometri.**
 
 | trin | konto | penge | startsaldo | MLL | trailer MLL? |
 |---|---|---|---|---|---|
@@ -100,9 +112,18 @@ penge uden nogensinde at røre et live-marked.
 
 | trin | krav |
 |---|---|
-| Combine | Nå $3.000. Bedste dag ≤ 50% af profitmålet, ellers **hæves** målet. Min. 2 handelsdage |
-| XFA | **5 vindende dage à $150+ net.** Derefter payout på op til 50% af saldo, maks $5.000, min $125. Efter hver payout nulstilles tælleren og MLL låses på $0 |
-| LFA | 5 benchmark-dage à $150+ pr. cyklus. 50% af saldo indtil 30 benchmark-dage, derefter 100% én gang pr. hverdag |
+| Combine | Nå $3.000. **Bedste dag ≤ 55% af samlet profit**, ellers hæves målet til `bedste_dag / 0,55`. Min. 2 handelsdage. **Ingen tidsgrænse** |
+| XFA | **5 vindende dage à $150+ net.** Payout op til 50% af saldo, **maks $2.000 på $50K** (min $125). En frivillig DLL fordobler loftet til $4.000. Efter hver payout nulstilles tælleren og MLL låses på $0 |
+| LFA | 5 benchmark-dage à $150+ pr. cyklus → 50% af saldo, uden dollarloft. Efter 30 dage: **én gang pr. dag** |
+
+**Brud er ikke det samme på de to trin.** Et MLL-brud i Combine gør kontoen ufundérbar
+indtil man betaler for en Reset. **Et MLL-brud på XFA lukker kontoen permanent.** Spor B's
+ruin er terminal, og det gør spor B til et andet modelleringsproblem end Combine — ikke et
+mildere.
+
+**Og XFA's 40%-konsistensregel er ikke en spærring.** Den er en *alternativ* udbetalingsvej
+— 3 handelsdage i stedet for 5 vindende, mod et højere loft. Overskrides de 40%, sker der
+ingenting ud over at man tager Standard-vejen i stedet.
 
 ### Konsekvensen for strategidesign
 
@@ -193,12 +214,14 @@ fem minutter før børsens eftermiddagspause:
 | Åbner | 17:00 | 00:00 |
 | US RTH | 08:30–15:00 | 15:30–22:00 |
 | **Topstep: alt fladt** | **15:10** | **22:10** |
-| 15-minutters handelspause | 15:15–15:30 | 22:15–22:30 |
-| Handler igen, samme handelsdag | 15:30–16:15 | 22:30–23:15 |
-| Vedligeholdelseslukning | 16:15–17:00 | 23:15–00:00 |
+| Børsen lukker | **16:00** | 23:00 |
+| Vedligeholdelse | **16:00–17:00** | 23:00–00:00 |
 
-Topstep spærrer altså kun 1t50m, og børsen er selv lukket eller i pause i en stor del af
-det. **Reelt forbudt handelstid vi ellers kunne bruge: ~50 minutter i døgnet.**
+Topstep spærrer 1t50m, og børsen er selv lukket i den sidste time af det.
+
+> **En 15-minutters pause 15:15–15:30 CT er uafklaret.** CME's aktuelle contract specs
+> nævner ingen intradag-pause; en ældre FAQ gør. Uden betydning for os — vi er flade 14:50
+> — men kod ikke et sessionsfilter på den uden at måle den i datafeedet først.
 
 **Fladt betyder nul åbne positioner.** Ikke reducerede, ikke hedgede. Åbne ordrer bør også
 annulleres, så intet fyldes ind i fladningsvinduet.
@@ -299,159 +322,128 @@ Ved NQ 29.639,50 og ATR_15m 0,168% er 1 ATR = 49,79 point = **R = $99,59** pr. k
 
 ---
 
-## 5. Positionsstørrelse og timeframe
+## 5. Positionsstørrelse og timeframe — AFSLUTTET
 
-> **Status 2026-09-13: §5's konklusion er faldet bort.** Fase 1 målte ATR på rigtige
-> MNQ-data i stedet for på 60 dages Yahoo-historik. Tallet er markant højere i US RTH end
-> det §5 stod på, og **valget "1 MNQ, 1-ATR-stop, 15m" er dermed ikke længere begrundet.**
-> Ruingitteret i 5b er regnet på det gamle tal og gælder ikke. Fase 2 regner det om.
-> Afsnittet er skrevet om så det viser hvad der **er** målt, og hvad der ikke er afgjort.
+**Fase 2 kørt 2026-09-13.** Rapport: `research/output/mll_ruin_v2_k55.md`. Præregistrering:
+`research/prereg/fase2_valgregel.md`. Alle fem kriterier K1–K5 holdt.
 
-### 5a. Det målte grundlag
+### 5a. Svaret er et bånd, ikke en celle
 
-Fase 1, MNQ, 2019-05-06 til 2026-09, Databento. Verificeret ved uafhængig genberegning i
-overblikssessionen (afvigelse < 0,01 pp).
+> **Risikobåndet: 6,4–7,1% af MLL ved p90, med 1 MNQ.**
+>
+> Timeframen afgøres ikke her. Den afgøres i **B4** på edge-grunde, hvorefter stopbredden
+> sættes så risikoen lander i båndet.
 
-**Basis:** NQ 29.138 · MNQ $2/point · MLL $2.000 · rundturomkostning $2,59 i RTH og $2,80
-uden for RTH (målt spread, ikke skøn) · gevinst/tab 2:1 · 1 kontrakt · 1-ATR-stop.
+Det præregistrerede låsekriterium krævede at én celle var øverst på **begge** WR-akser.
+Den fejlede, og det var det rigtige udfald.
 
-> **Én uoverensstemmelse, og den er uden betydning.** Tabellen er regnet med $2,59, men
-> `backtest/costs.py` trækker slippage som `max(0, N(0,5; 0,5))` tick, og afskæringen ved
-> nul løfter middelværdien til **0,542 tick pr. side**, ikke 0,50. Kodens faktiske
-> rundturomkostning i RTH er derfor **$2,627**. Forskellen flytter risikokolonnen med
-> 0,002 pp og be_WR med 0,04 pp i værste række. **Tabellen står.** Men $2,627 er tallet
-> der skal bruges fremadrettet, og konfigurationen skal erklære den *realiserede*
-> middelværdi, ikke parameteren. Fanget i fase 1-sessionens efterskrift.
-
-| timeframe | session | ATR_pct_p50 | ATR_pct_p90 | R_usd_p50 | R_usd_p90 | **risiko_pct_af_MLL_p50** | **risiko_pct_af_MLL_p90** | omk_R_p50 | be_WR_pct_p50 |
-|---|---|---|---|---|---|---|---|---|---|
-| 1m | RTH | 0,057 | 0,123 | 33,22 | 71,68 | **1,79** | **3,71** | 0,0780 | 35,93 |
-| 3m | RTH | 0,101 | 0,210 | 58,86 | 122,38 | **3,07** | **6,25** | 0,0440 | 34,80 |
-| 5m | RTH | 0,132 | 0,271 | 76,92 | 157,93 | **3,98** | **8,03** | 0,0337 | 34,46 |
-| 15m | RTH | 0,232 | 0,459 | 135,20 | 267,49 | **6,89** | **13,50** | 0,0192 | 33,97 |
-| 15m | døgn | 0,132 | 0,296 | 76,92 | 172,50 | **3,99** | **8,76** | 0,0364 | 34,55 |
-
-**Kolonnedefinitioner** — så tabellen kan læses uden at gætte:
-
-- `ATR_pct_pXX` = XX. percentil af ATR målt som procent af prisen, over alle barer i
-  sessionen. Ikke et gennemsnit.
-- `R_usd_pXX` = 1 ATR ved den percentil, omregnet til dollar for **én** MNQ:
-  `NQ × ATR_pct/100 × 2 × stop_ATR`.
-- `risiko_pct_af_MLL_pXX` = `(R_usd_pXX + rundturomkostning) / 2.000 × 100`.
-  **Det er go/no-go-kolonnen, og den vurderes på p90.**
-- `omk_R_pXX` = `rundturomkostning / R_usd_pXX`. Omkostningen målt i R.
-- `be_WR_pct_pXX` = break-even win rate ved 2:1 = `(1 + omk_R_pXX) / 3 × 100`.
-  Bemærk at den **falder** med percentilen, fordi den faste omkostning fylder mindre i et
-  større R. `be_WR_pct_p90` er derfor det *mildeste* tal i rækken, ikke det værste.
-
-### 5b. Hvad målingen ændrer
-
-**1. RTH er ikke det samme som døgnet, og forskellen er stor.** 15m i RTH har p50-ATR på
-0,232% mod 0,132% over hele døgnet — næsten det dobbelte. Døgnserien er fortyndet af
-stille asiatiske timer. **Al tidligere regning brugte reelt et døgntal på en RTH-strategi.**
-
-**2. Det gamle grundlag var for lavt.** ATR 0,168% gav $99,59 i R og 5,10% af MLL. Målt
-RTH-tal giver $135,20 og **6,89%**. Ved p90 **13,50%** — mere end en fordobling af den
-risiko §5 blev skrevet på.
-
-**3. Ruingitteret i den gamle §5a gælder ikke.** Det blev kørt med risiko_pr_handel =
-$102,06 fast. Den celle findes ikke længere: 1 MNQ med 1-ATR-stop på 15m RTH ligger på
-$137,79. Konklusionerne der ikke afhænger af niveauet står stadig — *sizing er andenordens,
-edge er førsteordens*, og *den forsigtige og den aggressive ende havner samme sted af
-modsatte grunde* — men **alle tal i gitteret skal regnes om.** Det er fase 2.
-
-**4. Min forudsigelse om kvadratrods-skalering var forkert.** Jeg skrev at lave timeframes
-formentlig ville have **højere** ATR end kvadratroden forudsiger. Målingen siger det
-modsatte, og afvigelsen er lille:
-
-| timeframe | forudsagt af √ fra 15m | målt | afvigelse |
+| celle | risiko_p90 | bestaa_pct, absolut akse | bestaa_pct, relativ akse |
 |---|---|---|---|
-| 1m | 0,0599% | 0,057% | **−4,8%** |
-| 3m | 0,1038% | 0,101% | **−2,7%** |
-| 5m | 0,1339% | 0,132% | **−1,5%** |
+| **5m/0,75** | **6,4** | 78,4 | **82,43** |
+| **3m/1,00** | **6,6** | 78,2 | 82,03 |
+| **15m/0,50** | **7,1** | **79,6** | 82,00 |
 
-Kvadratrods-skalering holder inden for 5% på MNQ i RTH. Antagelsen var god; min korrektion
-af den var ikke. Den skifter status fra **A** til **M** i `ANTAGELSER.md`.
+På den absolutte akse (WR 40% overalt) fører 15m/0,50 med 1,16 [0,81; 1,52] pp. På den
+relative akse (be_WR + 6 pp) fører 5m/0,75, og 15m/0,50 er ikke engang forrest på
+punktestimatet — den ligger −0,43 [−0,76; −0,09] pp efter.
 
-**5. Spread er målt og var undervurderet.** 92 dage, 2019-2026: **1,73 tick i RTH** og
-**2,17 tick uden for RTH**. Skønnet i `config.yaml` er 1,50 tick. Retningen er som
-forventet — uden for RTH er dyrere — men RTH er også dyrere end antaget.
-**Konfigurationen skal opdateres, og det er en fase 2-opgave, ikke en fri ændring.**
+**Begge forskelle er statistisk afgjorte og økonomisk ligegyldige.** 20.000 parrede stier
+giver konfidensintervaller på ±0,3 pp, så en forskel på 0,4 pp er "signifikant". Den er
+bare ikke vigtig. Hele toppen af feltet ligger inden for 0,43 pp på den ene akse og
+1,4 pp på den anden.
 
-> **Målingen har en antagelse inden i sig.** Tallet hviler på at et bbo-snapshot beskriver
-> intervallet før det, og at en quote fremføres i højst 60 sekunder. Ingen af delene er
-> bekræftet mod Databentos dokumentation — den kunne ikke hentes. Omkring 7% af sekunderne
-> mangler en bbo-record, og hvad det betyder, vides ikke. **Status er M med et A indeni.**
-> Det er stadig langt bedre end et gæt, men det er ikke det samme som et verificeret tal,
-> og det skal stå sådan i `ANTAGELSER.md`.
+**Hvorfor akserne vender hver sin vej** — og det er ikke støj, det er mekanik. På den
+relative akse har hver celle per konstruktion samme forventning: ved gevinst/tab `r` og win
+rate `be_WR + δ` er forventningen `δ(r+1)` i R, altså 0,18 R i alle celler ved 2:1 og
+δ = 6 pp. Cellerne med høj omkostning i R får derfor et større WR-løft når man går fra
+absolut til relativ, og de indhenter. **Ingen af akserne er "den rigtige"** — den ene
+antager at win rate er en egenskab ved signalet, den anden at edgen over break-even er
+det. Hvilken der gælder afhænger af hvordan win rate reagerer på stopbredde, og **det er
+vej 2, som er åben.**
 
-### 5c. Timeframe-vinduet
+### 5b. Beståelsesraten er en funktion af risikoniveau
 
-Kræfterne er uændrede — det er kun tallene der er nye.
+Dette er fasens vigtigste fund, og det er større end cellevalget.
 
-**Nedefra af omkostningen.** Omkostningen er fast pr. handel. Falder timeframen, skrumper
-1R, og gebyret fylder mere i R. På 1m er `omk_R` 0,078 og break-even win rate 35,9%.
+| risiko_p90 | celle | bestaa_pct | ruin_pct_pess | uafgjort_pct | dage_til_bestaa_p50 |
+|---|---|---|---|---|---|
+| 2,0 | 1m/0,50 | 0,2 | 0,1 | **99,6** | 180 |
+| 3,0 | 1m/0,75 | 14,4 | 1,2 | **84,4** | 164 |
+| 3,4 | 3m/0,50 | 28,3 | 2,1 | **69,7** | 155 |
+| 3,9 | 1m/1,00 | 43,0 | 3,9 | **53,1** | 144 |
+| 4,3 | 5m/0,50 | 56,6 | 5,3 | **38,1** | 133 |
+| 5,0 | 3m/0,75 | 67,8 | 8,6 | 23,6 | 118 |
+| **6,4** | **5m/0,75** | **78,4** | 15,2 | 6,4 | 90 |
+| **6,6** | **3m/1,00** | **78,2** | 16,5 | 5,3 | 87 |
+| **7,1** | **15m/0,50** | **79,6** | 18,1 | 2,3 | 76 |
+| 8,4 | 5m/1,00 | 75,0 | 24,4 | 0,6 | 60 |
+| 10,6 | 15m/0,75 | 67,9 | 32,1 | 0,0 | 40 |
+| 14,0 | 15m/1,00 | 58,9 | 41,1 | 0,0 | 25 |
 
-**Ovenfra af MLL'en, og af at 1 MNQ er udelelig.** Der findes ingen halv kontrakt. På 15m
-RTH lægger den mindst mulige position 13,50% af hele risikobudgettet på spil i en p90-bar.
-**Syv sådanne handler i træk og kontoen er død** — og syv tab i træk ved 34% win rate sker
-i omtrent 5% af alle sekvenser på 20 handler.
+Sorteret efter risiko er kurven enkelttoppet og næsten monoton på begge sider. **Tre
+forskellige timeframes lander inden for 1,4 pp af hinanden når de rammer samme
+risikoniveau.** Risikoen forklarer stort set alt; timeframen næsten intet.
 
-**1h og 4h er stadig ude**, og nu med bedre margin. Kvadratrods-opskalering fra det målte
-15m RTH-tal giver 0,464% på 1h og 0,928% på 4h, altså ~27% og ~54% af MLL pr. handel ved
-1 ATR. Der er ingen vej udenom ved at size ned.
+Og symmetrien: 5,0% giver 67,8 og 10,6% giver 67,9. Halv og halvanden gang det optimale
+koster det samme.
 
-**Spor B lukker døren yderligere.** XFA kræver fem vindende *dage*. Kravet om dage sætter
-en nedre grænse på handelsfrekvensen.
+**Grunden til at kurven falder i begge ender er forskellig.** Til højre dør man — ruin
+41% ved 14,0%. Til venstre når man aldrig frem: 1m/0,50 er stadig uafgjort i 99,6% af
+stierne efter 200 handelsdage.
 
-**Stopbredde som håndtag.** Da kontraktantallet ikke kan sænkes under 1, er stopafstanden
-det eneste andet håndtag på dollarrisikoen. Prisen betales i break-even win rate:
+### 5c. Tid er ikke gratis, men den adskiller heller ikke
 
-| timeframe | stop_ATR | risiko_pct_af_MLL_p50 | risiko_pct_af_MLL_p90 | be_WR_pct_p50 |
-|---|---|---|---|---|
-| 15m | 1,00 | 6,89 | 13,50 | 33,97 |
-| 15m | 0,75 | 5,20 | 10,16 | 34,18 |
-| 15m | 0,50 | 3,51 | 6,82 | 34,61 |
-| 5m | 1,00 | 3,98 | 8,03 | 34,46 |
-| 5m | 0,75 | 3,01 | 6,05 | 34,83 |
-| 3m | 1,00 | 3,07 | 6,25 | 34,80 |
-| 3m | 0,75 | 2,34 | 4,72 | 35,29 |
-| 1m | 1,00 | 1,79 | 3,71 | 35,93 |
-| 1m | 0,50 | 0,96 | 1,92 | 38,53 |
+Combine har **ingen tidsgrænse** (verificeret), så uafgjort er ikke "ikke bestået" — det er
+"ikke bestået endnu", til $49–95 om måneden. Blandt de tre plateau-celler:
 
-**At halvere risikoen koster omkring 0,6 pp i break-even win rate.** Det er billigt på
-papiret, og det er derfor tabellen er farlig at læse alene: den viser kun
-omkostningseffekten af et strammere stop. **Den viser ikke at et strammere stop rammes
-oftere.** Den effekt er ukendt og kan være mange gange større end 0,6 pp. Den kan kun
-måles mod en rigtig strategi.
+| celle | median dage | ved $49/md | ved $95/md |
+|---|---|---|---|
+| 15m/0,50 | 76 | ~$177 | ~$344 |
+| 3m/1,00 | 87 | ~$203 | ~$394 |
+| 5m/0,75 | 90 | ~$210 | ~$407 |
 
-**Søgefeltet er 15m og nedad**, og 15m er nu den dyre ende frem for det oplagte valg.
+15m/0,50 er 14 handelsdage hurtigere end 5m/0,75 ved medianen. **Det er ~$33 i sparet
+abonnement mod et mål på $3.000.** Tid adskiller altså heller ikke cellerne. Det er en
+legitim input til B4's valg, men det er ikke et argument der vejer noget alene.
 
-### 5d. De fire veje
+### 5d. Hvad der ellers blev afgjort
 
-| vej | idé | status |
-|---|---|---|
-| 1 | Lavere timeframe | **Åben og nu mere attraktiv.** 3m og 5m koster 3-4% af MLL mod 15m's 6,9% |
-| 2 | Sub-ATR stop | **Åben.** Kostsiden er kvantificeret (0,6 pp pr. halvering); win rate-siden er det ikke |
-| 3 | Acceptér ~5% pr. handel | **Skal genprøves.** Cellen er nu 6,89% ved p50 og 13,50% ved p90 |
-| 4 | Større konto | Bortfaldet — $50K valgt |
+**Konsistensrettelsen 50 → 55% flyttede næsten ingenting med 1 kontrakt.** Kun 15m/1,00
+(+0,16 pp) og 15m/0,75 (+0,04 pp) rykkede synligt, ingen rangering skiftede. Forklaringen
+er mekanisk: reglen binder først når bedste dag overstiger $1.500, og med 1 MNQ og højst
+tre handler dagligt kan kun de bredeste celler nå dertil, og kun i ATR-fordelingens hale.
+**Ved 2-3 kontrakter betyder rettelsen op til +0,8 pp** — hvis vi nogensinde skalerer, skal
+den regnes med.
 
-**De fire veje er ikke valgmuligheder man vælger imellem. De er akser i ét sweep**, der
-køres én gang mod en rigtig strategi på rigtige data. Vej 1 og 2 virker begge gennem win
-rate, og win rate kommer fra en strategi.
+**Fordelingen mod punktestimatet: P(ruin) stiger 8,52 [8,05; 8,98] pp** mod en konstant ved
+E[R], og 11,68 pp mod en konstant ved R_p50 — som er den gamle models metode. Det er
+fasens metodiske resultat. Den gamle §5 sagde 10,09% ruin for 15m/1-ATR; det rigtige tal er
+34,5% optimistisk og 41,1% pessimistisk. **Vi tog fejl med en faktor tre og et halvt.**
 
-### 5e. Hvad modellen ikke svarer på
+**Monotoni-selvtjekket holdt.** Ruin stiger monotont med risiko på den relative akse — 0
+afgjorte brud ud af 66 par, ved både 200 og 500 dages horisont. Mekanikken opfører sig som
+gambler's ruin forudsiger.
 
-- **Hvordan win rate ændrer sig med stopbredden.** Vej 2's dyre side er stadig umålt.
-- **Spor B.** Målfunktionen er "nå $3.000 før ruin" — altså Combine. XFA og LFA har en
-  anden målfunktion: fem dage à $150+.
-- **Klyngede tab.** Handlerne trækkes uafhængigt. Når der findes en strategi, skal modellen
-  **blok-bootstrappe fra strategiens egen handelssekvens**.
-- **Vejen inde i en handel.** Derfor to brudmodeller frem for ét tal.
-- **Prisniveauets vandring.** ATR i procent er målt over syv år hvor NQ gik fra ~8.000 til
-  ~29.000. Samme ATR i procent er 3,6× flere dollar i dag. En ruinmodel der trækker fra
-  hele historikken og regner i dollar mod et fast gulv på $2.000 blander to regimer.
-  Håndteres i fase 2.
+**500-dages-diagnosen bekræftede at horisonten former rangeringen.** Ved 500 dage er
+5m/0,50 øverst på den absolutte akse (91,6%) og 15m/0,50 falder til 7. plads.
+Beståelsesrangeringen er ikke monoton i risiko, fordi de mindste celler stadig ikke er
+færdige. **Konklusionen af det er ikke "vælg småt"** — det er at horisonten er et budget,
+ikke en modelparameter, og at 200 handelsdage er valgt af os.
+
+### 5e. Hvad der stadig ikke er afgjort
+
+- **C4 er blokerende.** Ved 1,0 tick slippage pr. side når ruin 19,51 [18,97; 20,07] og
+  krydser K2's grænse på 20%. Slippage er det eneste rene skøn tilbage i omkostningen og
+  skal måles før live. Spread på 1,50 eller 2,17 tick ændrer derimod ingenting.
+- **Vej 2.** Hvordan win rate reagerer på stopbredde er umålt. Det afgør hvilken WR-akse
+  der er den rigtige, og dermed hvor i båndet man bør ligge.
+- **Klyngede tab.** Handlerne trækkes stadig uafhængigt. Når der findes en strategi, skal
+  modellen blok-bootstrappe fra strategiens egen handelssekvens.
+- **Spor B.** Målfunktionen her er Combine. XFA har en anden — fem dage à $150+, terminal
+  ruin, og et loft på $2.000. Egen model, egen fase.
+- **Den bindende antagelse:** alt ovenstående forudsætter en win rate på 40% som **ingen
+  strategi har leveret.** Nulmodellen i 15m/0,50 består 21,05% ved nul edge. Forskellen
+  mellem 21% og 80% er edgen, og den findes ikke endnu.
 
 ---
 
@@ -600,9 +592,10 @@ Bogstavet er fasen, tallet er rækkefølgen inden for fasen.
 | ~~B1~~ | ~~Datagrundlag~~ | — | **Besvaret.** Databento, MNQ fra 2019-05-06. K1-K4 holdt |
 | ~~B2~~ | ~~ATR-fordeling pr. timeframe~~ | B1 | **Besvaret.** §5a |
 | ~~B3~~ | ~~Reelt spread pr. tidsblok~~ | B1 | **Besvaret.** Målt: 1,73 tick i RTH, 2,17 uden for. §5b |
-| **B6** | **Sizing på det målte grundlag.** Hvilken kombination af timeframe og stopbredde overlever ruinmodellen med R trukket fra den målte ATR-fordeling? | B2 | §5's konklusion er faldet. Se `PRD_FASE2_RUINMODEL.md` |
-| **B4** | **Edge-hypotese til indeksfutures** | — | Uden den har vi et måleapparat uden noget at måle. **Det egentlige projekt.** Eget dokument |
+| ~~B6~~ | ~~Sizing på det målte grundlag~~ | B2 | **Besvaret.** Risikobåndet 6,4-7,1% af MLL ved p90. §5 |
+| **B4** | **Edge-hypotese til indeksfutures** | — | Uden den har vi et måleapparat uden noget at måle. **Det egentlige projekt, og næste fase.** Eget dokument |
 | **B5** | **Understøtter MNQ 2:1, eller skal vi til 1,5:1?** | B4 | Ved 1,5:1 springer be_WR fra ~34% til ~40% og hele §5 er ugyldig |
+| **B7** | **Spor B's egen ruinmodel.** XFA har terminal ruin, et udbetalingsloft på $2.000 og en helt anden målfunktion end Combine | B4 | Vi har hidtil kaldt XFA "et mildere regime". Det holder ikke. Egen fase |
 
 ### C. Før live
 
@@ -613,14 +606,14 @@ Bogstavet er fasen, tallet er rækkefølgen inden for fasen.
 | C3 | Fallback når Telegram er nede |
 | C4 | Slippage på stops, målt |
 | C5 | Eksplicit regel i koden når MLL nærmer sig |
-| ~~C6~~ | ~~Hvad koster markedsdata på LFA?~~ **Lukket 2026-09-13:** $133 pr. børs pr. måned, professionel takst (`REGLER_VERIFICERET.md` §5) |
+| ~~C6~~ | ~~Hvad koster markedsdata på LFA?~~ **Besvaret: $133 pr. børs pr. måned, professionel takst. ~$399/md for alle fire** |
 | C7 | **Afvigelse mellem backtest-serien og TopstepX' feed**, målt (§7) |
 | C8 | **Fladningsreglen i kode.** Reglen er besluttet (§3): sidste indgang 14:30 CT, hård udfladning 14:50 CT, genforsøg, alarm 15:00 CT, alt regnet i America/Chicago, fladt bekræftet mod brokerens positionsopgørelse. **Implementeringen mangler**, og det gør adfærden når Macen er offline på fladningstidspunktet |
 | C10 | **Hvad koster indgangsstoppet 14:30 CT?** 7,7% af RTH-sessionen fravælges. Måles mod en rigtig strategi, ikke besluttet på forhånd |
-| C9 | **Opdatér `config.yaml` med målt spread** — 1,73 tick i RTH, 2,17 uden for. Skønnet 1,50 står der stadig |
-| C11 | **Nyhedsfilter.** Maksimal position ind i planlagte større nyheder er forbudt hos Topstep. Botten skal kende den økonomiske kalender og size ned. Handel under nyheder er tilladt |
+| ~~C9~~ | ~~Opdatér `config.yaml` med målt spread~~ — **gjort i fase 2** |
+| C11 | **Nyhedsfilter.** Maksimal position ind i planlagte større nyheder er forbudt. Botten skal kende den økonomiske kalender og size ned. Handel *under* nyheder er tilladt |
 | C12 | **Én konto ad gangen.** Kryds-konto-hedging, koordineret handel og account stacking er forbudt |
-| C13 | **Auto-breakeven** er nævnt eksplicit i Topsteps SIM-fill-regler som en teknik de slår ned på. Vores frekvens er langt under tærsklen, men teknikken skal ikke bruges blindt |
+| C13 | **Auto-breakeven er nævnt eksplicit** i Topsteps SIM-fill-regler. Vores frekvens er langt under tærsklen, men teknikken skal ikke bruges blindt |
 
 ---
 
@@ -630,7 +623,8 @@ Vi bygger ikke fordi det føles som næste skridt. Vi er klar når **alle fem** 
 
 1. ~~**B1-B3 er besvaret**~~ — **opfyldt 2026-09-13.** Der findes data, ATR er målt som
    fordeling, spread er målt.
-   **1b. B6 er afgjort** — sizingen står på den målte fordeling, ikke på et punktestimat.
+   ~~**1b. B6 er afgjort**~~ — **opfyldt 2026-09-13.** Sizingen står på den målte fordeling
+   som et bånd, ikke et punktestimat.
 2. **B4 har mindst én kandidat** med et svar på "hvorfor betaler nogen mig for det her?"
 3. **B5 er afgjort** — vi ved hvilket RR instrumentet understøtter.
 4. **`claude/ANTAGELSER.md` har ingen S'er på kritisk vej** — eller de tilbageværende skøn
