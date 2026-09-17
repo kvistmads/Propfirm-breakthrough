@@ -104,6 +104,55 @@ præregistreres:
 4. **Tæl hver kørsel.** Antallet af testede varianter rapporteres sammen med resultatet.
    Et p-værdi-agtigt tal uden tælleren er meningsløst.
 
+### Kan vi så bare køre ti tusind strategier?
+
+Ja. Og det er tilladt — **på én betingelse: at tælleren rapporteres og tærsklen hæves
+tilsvarende.** Det er ikke en holdning, det er regnestykke.
+
+Den forventede maksimale Sharpe blandt N rene støjstrategier vokser som `√(2 ln N)`:
+
+| antal testede varianter | tærsklen stiger med faktor |
+|---|---|
+| 3 | 1,00× (reference) |
+| 10 | 1,45× |
+| 100 | 2,05× |
+| 1.000 | 2,51× |
+| **10.000** | **2,90×** |
+
+**En strategi fundet blandt 10.000 skal have knap tre gange så høj observeret Sharpe som
+en fundet blandt tre, for at være lige troværdig.** Det er den pris man betaler for at
+søge bredt, og den er uundgåelig.
+
+Det praktiske problem er ikke at søge. Det er at søge og **ikke tælle**. En bred søgning
+hvor tælleren rapporteres er legitim videnskab. En bred søgning hvor man husker vinderen og
+glemmer de 9.999 andre er selvbedrag med en pæn graf.
+
+**Metoderne findes og er veludviklede:** Deflated Sharpe Ratio og Probability of Backtest
+Overfitting (Bailey & López de Prado), White's Reality Check og Hansens SPA-test, og
+purged/embargoed walk-forward. Harvey, Liu og Zhu argumenterede for at en t-værdi på 3 —
+ikke 2 — bør være minimum for et nyt faktorfund, netop på grund af den samlede mængde
+afprøvninger i litteraturen.
+
+**For vores stikprøve er konklusionen praktisk, ikke principiel.** Med 1-3 handler dagligt
+over syv år har vi størrelsesordenen 5.000-10.000 handler. En edge der skal klare en
+10.000-forsøgs-deflation på den stikprøve skal være meget stor — større end noget vi
+realistisk forventer. **Derfor søger vi smalt: ikke fordi bred søgning er forbudt, men
+fordi vores data ikke kan bære regningen.**
+
+### En prøvestand, men ikke endnu
+
+Et værktøj der automatiserer det her er værd at bygge — og dets vigtigste egenskab er ikke
+søgningen, det er **bogholderiet**:
+
+- afviser en hypotese der bryder kravspecifikationen i §3, før den overhovedet testes
+- **tæller hver eneste kørsel automatisk**, så tælleren ikke afhænger af hukommelse
+- håndhæver purged walk-forward, så der ikke lækker information mellem folder
+- beregner den deflaterede tærskel ud fra tælleren
+- holder holdout-perioden forseglet
+
+**Men byg den ikke først.** Kør to-tre hypoteser i hånden, så vi ved hvad den gentagne del
+faktisk er. Bygger vi prøvestanden før vi kender formen, bygger vi den til det forkerte.
+
 **Mindste detekterbare forskel beregnes før testen** — metoderegel 3. Med 1-3 handler om
 dagen over syv år har vi størrelsesordenen 5.000-10.000 handler. Hvor lille en edge kan vi
 overhovedet skelne fra nul med den stikprøve? **Det tal skal ligge på bordet før første
@@ -131,9 +180,21 @@ man opdager at nul edge giver 21% ved samme sizing.
 
 ## 6. Hvad fase 3 skal levere
 
+Hver hypotese der overlever samtalen, specificeres efter denne tjekliste — lånt fra
+AlphaInsiders strategy-creator og udvidet med vores egne krav. **En hypotese er ikke færdig
+før alle ti punkter har et svar**, også hvis svaret er "ikke relevant, fordi…":
+
+`instrumenter` · `signaler` · `data` · `timing` · `eksekvering` · `sizing` · `afstemning` ·
+`risiko` · `genopretning` · `logning`
+
+De tre der plejer at blive glemt er **afstemning** (stemmer botten sin egen positionsopgørelse
+mod brokerens?), **genopretning** (hvad sker der efter et nedbrud midt i en position?) og
+**logning** (kan vi bagefter se hvorfor den handlede?). De tre er også dem der afgør om
+strategien kan drives, ikke bare om den virker.
+
 | leverance | hvor |
 |---|---|
-| 3-5 hypoteser med skrevet mekanisme | `research/output/b4_hypoteser.md` |
+| 3-5 hypoteser med skrevet mekanisme og udfyldt tjekliste | `research/output/b4_hypoteser.md` |
 | Beslutning om holdout-periode | Samme dokument, præregistreret |
 | MDE for den valgte stikprøve | Samme |
 | Præregistrering pr. hypotese | `research/prereg/` |
@@ -173,6 +234,44 @@ noget. To forbehold, begge skal håndteres før det køres:
 
 Rækkefølgen bør være: **find noget på MNQ først, brug derefter de andre instrumenter som
 uafhængig bekræftelse.** Det er en langt stærkere test end at søge på fire ad gangen.
+Besluttet 2026-09-17.
+
+### AlphaInsider — værktøjet nej, arbejdsformen ja
+
+Gennemgået to gange 2026-09-17. Første gennemgang var for overfladisk og afviste for meget.
+
+**Værktøjet kan vi ikke bruge.** Markedspladsen dækker **aktier og krypto, ingen futures**,
+og genererede strategier har AlphaInsider som eneste destination for papirordrer. Vi skal
+til TopstepX. Broker-tilsluttede bots hos tredjepart passer desuden dårligt med Topsteps
+krav om at ordreafsendelse sker fra egen maskine.
+
+**Strategibiblioteket: brug mekanismerne, aldrig tallene.** En offentlig markedsplads
+rangeret efter afkast er den reneste multiple-comparison-maskine der findes — tusindvis
+publicerer, og de overlevende ser strålende ud af ren konstruktion. Vi kender ikke deres N.
+At overtage en strategi *fordi den har klaret sig godt* er at arve en fremmed
+selektionsbias. At låne en **idé om en mekanisme** og teste den selv på vores data er
+derimod helt legitimt, og biblioteket er gratis at kigge i.
+
+**Arbejdsformen i `alphainsider-strategy-creator` er værd at stjæle fra.** Den er et
+interviewdrevet specifikationsværktøj, ikke en edge-finder, og tre ting i den er gode:
+
+1. **"Frontier rounds":** den spørger kun til de beslutninger der er *aktuelt oplåste*, og
+   udleder efter hver runde hvilke der så er blevet oplåste. Bedre end et fladt spørgeskema,
+   fordi tidlige svar ændrer hvilke senere spørgsmål der overhovedet giver mening.
+   **Brug den struktur i hypotesesamtalen.**
+2. **Fuldstændighedstjeklisten:** instrumenter · signaler · data · timing · eksekvering ·
+   sizing · **afstemning** · risiko · **genopretning** · **logning**. De tre fremhævede har
+   vi kun spredt i C-listen. De hører i strategispecifikationen fra starten.
+3. **Backtest tilbydes kun når de historiske input kan rekonstrueres uden fremtidig
+   information.** Det er en look-ahead-spærre formuleret som en *forudsætning for at køre
+   testen*, ikke som et tjek bagefter. Skarpere end vores egen formulering.
+
+To ting gør den allerede som vi gør: den implementerer ikke før planen er bekræftet
+(metoderegel 8), og den nedskriver den bekræftede beslutning i en plan-fil (vores
+præregistrering). Uafhængig bekræftelse af at formen er rigtig.
+
+**Konklusion: ingen installation, ingen nøgler, intet abonnement. Vi låner tre ting fra
+arbejdsformen og ser i biblioteket efter idéer — ikke efter resultater.**
 
 ---
 
@@ -204,6 +303,10 @@ kompakt tabel i chatten ved hvert resultat · aldrig nøgleværdier i chatten.
 Mads vil have en lang drøftelse af hypoteserne før noget skrives. Start der: hvilke
 kandidater har han selv, hvad er mekanismen bag hver enkelt, og hvilke overlever
 kravspecifikationen i §3.
+
+**Før samtalen i frontier-runder**, ikke som et fladt spørgeskema: stil kun de spørgsmål
+der er aktuelt oplåste, og udled efter hvert svar hvilke der så giver mening. Et valg af
+mekanisme ændrer hvilke spørgsmål om timing og eksekvering der overhovedet er relevante.
 
 **Hans egne idéer skal ikke valideres videnskabeligt for at komme i betragtning** — de
 vurderes på om de kan automatiseres, om de passer ind, og hvor omfattende ændringen er.
