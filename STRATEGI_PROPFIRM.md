@@ -19,6 +19,49 @@ modelantagelser), `PRD_FASE1_DATAGRUNDLAG.md` og `PRD_FASE2_RUINMODEL.md` (kørt
 
 ---
 
+## Faseoversigt
+
+Hvor vi står, og hvad der mangler. **Kørte faser er faktuelle; kommende faser er skitser**
+— de får først en PRD når vi når dertil, én ad gangen (§7).
+
+| fase | indhold | status |
+|---|---|---|
+| **0. Repo og apparat** | Eget repo, apparatet kopieret fra det gamle, arbejdsform og metoderegler | **Kørt** 09-10/09 |
+| **1. Datagrundlag** | Datakilder, MNQ/NQ fra 2019, ATR som fordeling, spread målt. K1-K4 holdt | **Kørt** 11-13/09 |
+| **2. Ruinmodel og sizing** | R trukket fra fordelingen, nulmodel, låsekriterium. K1-K5 holdt | **Kørt** 13/09 |
+| **3. Edge-hypotese (B4)** | Findes der en edge på indeksfutures? **Projektets egentlige opgave** | **Næste** |
+| 4. Strategi og backtest | Hypotesen bygget som kode, målt mod nulmodellen. B5 (2:1 mod 1,5:1) afgøres her | Skitse |
+| 5. Spor B: XFA-model | Egen ruinmodel for XFA — terminal ruin, udbetalingsloft, "fem dage à $150+" | Skitse |
+| 6. Live-klargøring | C-listen: fladningsregel i kode, slippage målt (C4), tilstandsgenopretning, feed-afvigelse | Skitse |
+| 7. Combine købt og kørt | Først når 1-6 er lukket. $49-95/md begynder at løbe her | Skitse |
+
+### Hvad der er afgjort
+
+- **Instrument og konto:** MNQ, Topstep $50K.
+- **Omkostning:** $2,627 pr. rundtur i RTH, dekomponeret og verificeret. Kun slippage er
+  stadig et skøn.
+- **Sizing:** risikobåndet **6,4-7,1% af MLL ved p90** med 1 MNQ. Ikke én celle — tre
+  timeframes rammer båndet og er uadskillelige.
+- **Timeframe-vindue:** 15m og nedad. 1h og 4h er ude.
+- **Handelsvindue og fladning:** kun US RTH, sidste indgang 14:30 CT, hård udfladning
+  14:50 CT.
+- **Alle Topstep-regler** verificeret ordret hos primærkilden (`REGLER_VERIFICERET.md`).
+
+### Hvad der mangler, i rækkefølge
+
+1. **B4 — en edge-hypotese.** Uden den er alt ovenstående et måleapparat uden noget at
+   måle. Alle tal i §5 hviler på en antaget win rate på 40% som ingen strategi har leveret.
+2. **B5 — understøtter MNQ 2:1?** Afgøres når en strategi findes. Ved 1,5:1 springer
+   break-even fra ~34% til ~40% og hele §5 skal regnes om.
+3. **B7 — spor B's egen model.** XFA har terminal ruin, et udbetalingsloft på $2.000 og en
+   anden målfunktion end Combine.
+4. **C4 — slippage målt.** Blokerende: ved 1,0 tick pr. side krydser ruin K2's grænse.
+5. **C-listen i øvrigt** før første live-handel.
+6. **De fire skippede ende-til-ende-tests** i `test_paired.py` genaktiveres når
+   MNQ-runneren findes. Det er apparatets eneste samlede dækning.
+
+---
+
 ## 0. Invarianter
 
 Regler der gør alle tabeller i dokumentet forkerte hvis de brydes. De står her og ikke i
