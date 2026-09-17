@@ -30,7 +30,7 @@ Hvor vi står, og hvad der mangler. **Kørte faser er faktuelle; kommende faser 
 | **1. Datagrundlag** | Datakilder, MNQ/NQ fra 2019, ATR som fordeling, spread målt. K1-K4 holdt | **Kørt** 11-13/09 |
 | **2. Ruinmodel og sizing** | R trukket fra fordelingen, nulmodel, låsekriterium. K1-K5 holdt | **Kørt** 13/09 |
 | **3. Edge-hypotese (B4)** | Findes der en edge på indeksfutures? **Projektets egentlige opgave** | **Næste** |
-| 4. Strategi og backtest | Hypotesen bygget som kode, målt mod nulmodellen. B5 (2:1 mod 1,5:1) afgøres her | Skitse |
+| 4. Strategi og backtest | Hypotesen bygget som kode, målt mod nulmodellen. B5 (2:1 mod 1,5:1) afgøres her. **MNQ-runneren bygges, og de fire skippede ende-til-ende-tests genaktiveres** | Skitse |
 | 5. Spor B: XFA-model | Egen ruinmodel for XFA — terminal ruin, udbetalingsloft, "fem dage à $150+" | Skitse |
 | 6. Live-klargøring | C-listen: fladningsregel i kode, slippage målt (C4), tilstandsgenopretning, feed-afvigelse | Skitse |
 | 7. Combine købt og kørt | Først når 1-6 er lukket. $49-95/md begynder at løbe her | Skitse |

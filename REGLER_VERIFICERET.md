@@ -113,13 +113,40 @@ på $1.650 er altså grænsen ved et mål på $3.000.
 | Udbetaling | 5 benchmark-dage à $150+ pr. cyklus → op til 50% af saldoen, **uden dollarloft** | |
 | Daglige udbetalinger | efter **30 ikke-sammenhængende** dage à $150+ → **én gang pr. dag**, min. $125 | Bemærk: "once per day", ikke "pr. hverdag" som vi tidligere skrev |
 | Konsistensregel | **findes ikke på LFA** | Eneste analoge: samlede udbetalinger må ikke overstige 90% af startsaldo plus nettoprofit |
-| **Markedsdata** | **$133 pr. børs pr. måned — professionel takst** | "Data fee: $133 per exchange, per month". Topstep dækker CME som standard; alle fire børser ≈ $540/md, ≈ $399/md af egen lomme |
+| **Markedsdata** | **CME er dækket af Topstep — $0 for os** | "Topstep covers 1 exchange for all LFA Traders", CME som standard. CME dækker "ES, MES, NQ, MNQ, RTY, M2K…". Øvrige børser $133/md stykket; alle fire ≈ $540/md, hvoraf $399 af egen lomme. **Handler vi kun MNQ, er datakosten nul på alle tre trin** |
 | Platformslicens | **egen regning** på LFA, modsat Combine | |
 | Børsgebyr pr. rundtur | ES/NQ $3,80, CL $1,54, GC $4,24 | Bemærk: **højere end i Combine** |
 
-**LFA er dyr at sidde på.** ~$399/md i data plus platformslicens mod et fast gulv på
-$1.000. Økonomien er en helt anden end XFA's, hvor Topstep betaler. Det bør indgå i
-beslutningen om vi overhovedet vil kaldes op.
+**Rettet 2026-09-17:** de $399 gælder kun hvis man vil handle uden for CME. MNQ ligger på
+CME, som Topstep dækker. **Datakosten er altså nul på alle tre trin så længe vi kun handler
+MNQ.** Tilbage står platformslicensen, som man selv betaler på LFA, og de højere børsgebyrer
+pr. rundtur.
+
+### Op- og nedkald mellem XFA og LFA
+
+Verificeret 2026-09-17. **Dette er den vigtigste regel vi har fundet for en bot, fordi den
+ikke er et tal.**
+
+| | |
+|---|---|
+| Fører fem vindende dage til LFA? | **Nej.** "Do I need 5 payouts to move to Live? No. All decisions are based on overall performance and Risk Team review." De fem dage er et **udbetalingskrav**, ikke en forfremmelse |
+| Hvem beslutter | Topsteps risikoafdeling, ud fra konsistens, risikostyring, positionsstørrelse, brug af stops, tidligere opkald og udbetalingshistorik |
+| Startsaldo på LFA | 20% af den samlede XFA-saldo, dog højst kontostørrelsen, minimum $10.000 |
+| Kan man kaldes ned igen? | **Ja, uden varsel.** "There is no warning before being called down" |
+
+**Grunde til nedkald, ordret:** væsentligt træk på den udlånte kapital · **gentagne brud på
+Daily Loss Limit** · "activity that resembles gambling rather than disciplined trading" ·
+"continuous over-leveraging, especially during inflection points" · revenge trading.
+
+> **Konsekvensen for en automatiseret strategi.** XFA er ikke en trappe man automatisk går
+> op ad — den kan køre i det uendelige med rigtige udbetalinger, og opkald til LFA er en
+> skønsmæssig vurdering af **adfærd**. En bot der gentagne gange rammer DLL'en, skalerer op
+> efter tab, eller tager maksimal position ind i nyheder, bliver bedømt som udisciplineret
+> af et menneske — uanset hvad forventningsværdien siger.
+>
+> **Det er en bindende designregel vi ikke kan modellere som et tal**, og den skal stå i
+> strategiens krav: botten skal ikke bare overholde reglerne, den skal *se* disciplineret ud
+> for en anmelder.
 
 ---
 
