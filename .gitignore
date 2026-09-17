@@ -12,3 +12,5 @@ data/cache/
 research/output/fase1_k2_dage_*.csv
 research/output/fase1_bar_for_bar_*.csv
 .DS_Store
+
+Claude outputs/
