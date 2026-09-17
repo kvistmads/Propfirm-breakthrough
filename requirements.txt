@@ -1,13 +1,17 @@
-# Python 3.14.4 — det .venv faktisk kører (låst 2026-09-13, fase 2).
+# Python 3.14.6 — det .venv faktisk kører (låst 2026-09-13, fase 2).
 # Der er INGEN scipy. Ruinmodellen og statistikken klarer sig med numpy og math.
 #
-# Afsnit 1 er låst til de versioner der er installeret i .venv og som propfirm-sporet
-# (data/, backtest/costs.py, research/, tests/) er kørt på. Afsnit 2 er arvet fra det
-# gamle repo og er IKKE installeret i .venv — ingen kode i propfirm-sporet bruger det.
+# Denne fil indeholder KUN det der er installeret i .venv, så
+#     pip install -r requirements.txt
+# virker fra en frisk klon. Det gjorde den ikke før 2026-09-17: afsnit 2 lå i samme
+# fil med en kommentar om at det ikke skulle installeres, men pip læser ikke
+# kommentarer. chromadb trækker onnxruntime, som ikke har hjul til 3.14, og de gamle
+# chromadb-versioner kræver numpy<2.0 mod vores 2.5.3. Resultatet var
+# ResolutionImpossible efter ti minutters backtracking gennem 60 chromadb-versioner.
+#
+# Arvede pakker fra det gamle repo ligger nu i requirements-arvet.txt.
+# De må IKKE installeres sammen med denne fil.
 
-# ---------------------------------------------------------------------------
-# 1. Installeret og låst
-# ---------------------------------------------------------------------------
 pandas==3.0.5
 numpy==2.5.3
 pyarrow==25.0.1
@@ -22,36 +26,3 @@ aiohttp==3.14.3
 exchange_calendars==4.13.2
 databento==0.86.0
 yfinance==1.7.0
-
-# ---------------------------------------------------------------------------
-# 2. Arvet fra det gamle repo — ikke installeret i .venv
-# ---------------------------------------------------------------------------
-# Den gamle note sagde "Python 3.12 required (3.13+ ikke understøttet af
-# cryptography/numba endnu)" og gjaldt disse pakker. Installér med binære wheels:
-#   pip install --only-binary=:all: <pakke>
-ccxt>=4.3.0
-SQLAlchemy>=2.0.0
-aiosqlite>=0.19.0
-
-# Phase 4 — Learning Loop (reflection/). Installér med --only-binary=:all: (chromadb
-# trækker onnxruntime/tokenizers der ellers bygger fra kilde):
-#   .venv/bin/pip install --only-binary=:all: chromadb anthropic "apscheduler>=3.10,<4.0"
-chromadb>=0.5.0          # embeddings-store for historiske observationer
-anthropic>=0.40.0        # LLM-analyse (læser ANTHROPIC_API_KEY fra .env)
-apscheduler>=3.10.0,<4.0 # cron-scheduling af nightly/weekly (v4 har breaking API-ændringer)
-
-# Phase 5 — skema-migrationer. Erstatter den manuelle _apply_additive_migrations:
-# nye kolonner på eksisterende tabeller håndteres nu af `alembic upgrade head`.
-alembic>=1.13,<2.0
-
-# pandas-ta er BEVIDST udeladt. På dette miljø (numpy 2.5 / pandas 3.0) kan den ikke køre:
-#   - pandas-ta>=0.3.14b resolver til 0.4.71b0, som kræver numba → numba tvinger numpy<2.4 (nedgradering).
-#   - Den ældre 0.3.14b0 gør `from numpy import NaN`, som blev fjernet i numpy 2.0 → importerer ikke.
-# Indikatorerne (EMA/MACD/RSI/ATR/Bollinger/volume) er derfor implementeret i ren pandas/numpy
-# i data/indicators.py — matematisk identiske og med samme kolonnenavne som pandas-ta.
-# pandas-ta>=0.3.14b
-
-# MetaTrader5 er Windows-only og har ingen wheel til macOS/Linux.
-# Installeres separat på Windows-terminalen; koden fejler gracefully hvis den mangler:
-#   pip install MetaTrader5
-# MetaTrader5>=5.0.45  ; sys_platform == "win32"

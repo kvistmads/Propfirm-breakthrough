@@ -1,0 +1,32 @@
+# ARVET FRA DET GAMLE REPO — IKKE INSTALLERET, OG KAN IKKE INSTALLERES
+#
+# Ingen kode i propfirm-sporet bruger noget herfra. Filen findes udelukkende som
+# dokumentation af hvad det gamle projekt brugte, så vi kan slå det op hvis en
+# fremtidig fase får brug for det.
+#
+# ADVARSEL: `pip install -r requirements-arvet.txt` vil fejle i vores miljø.
+# chromadb kræver onnxruntime, som ikke har hjul til Python 3.14, og chromadb
+# under 1.0 kræver numpy<2.0 mod vores numpy==2.5.3. Skal en af pakkerne bruges,
+# installér den enkeltvis og tjek først at den ikke tvinger numpy eller pandas ned.
+#
+# Den gamle note sagde "Python 3.12 required (3.13+ ikke understøttet af
+# cryptography/numba endnu)" og gjaldt disse pakker.
+
+ccxt>=4.3.0
+SQLAlchemy>=2.0.0
+aiosqlite>=0.19.0
+
+# Phase 4 — Learning Loop (reflection/)
+chromadb>=0.5.0          # embeddings-store for historiske observationer
+anthropic>=0.40.0        # LLM-analyse (læser ANTHROPIC_API_KEY fra .env)
+apscheduler>=3.10.0,<4.0 # cron-scheduling af nightly/weekly (v4 har breaking API-ændringer)
+
+# Phase 5 — skema-migrationer
+alembic>=1.13,<2.0
+
+# pandas-ta er BEVIDST udeladt. På dette miljø (numpy 2.5 / pandas 3.0) kan den ikke køre:
+#   - pandas-ta>=0.3.14b resolver til 0.4.71b0, som kræver numba → numba tvinger numpy<2.4.
+#   - Den ældre 0.3.14b0 gør `from numpy import NaN`, som blev fjernet i numpy 2.0.
+# Indikatorerne er derfor implementeret i ren pandas/numpy i data/indicators.py.
+
+# MetaTrader5 er Windows-only og har ingen wheel til macOS/Linux.
