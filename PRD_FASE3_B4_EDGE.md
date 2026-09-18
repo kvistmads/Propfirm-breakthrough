@@ -109,19 +109,37 @@ præregistreres:
 Ja. Og det er tilladt — **på én betingelse: at tælleren rapporteres og tærsklen hæves
 tilsvarende.** Det er ikke en holdning, det er regnestykke.
 
-Den forventede maksimale Sharpe blandt N rene støjstrategier vokser som `√(2 ln N)`:
+Den forventede maksimale Sharpe blandt N rene støjstrategier under nulhypotesen er
 
-| antal testede varianter | tærsklen stiger med faktor |
-|---|---|
-| 3 | 1,00× (reference) |
-| 10 | 1,45× |
-| 100 | 2,05× |
-| 1.000 | 2,51× |
-| **10.000** | **2,90×** |
+    E[maks SR] = sigma_SR · [ (1 - g) · Z^-1(1 - 1/N) + g · Z^-1(1 - 1/(N·e)) ]
 
-**En strategi fundet blandt 10.000 skal have knap tre gange så høj observeret Sharpe som
-en fundet blandt tre, for at være lige troværdig.** Det er den pris man betaler for at
-søge bredt, og den er uundgåelig.
+hvor `g` er Euler-Mascheronis konstant (0,5772) og `Z^-1` er den inverse
+standardnormalfordeling. Formlen er Bailey og López de Prados; den er
+implementeret i `research/multipletesting.py` som `expected_maximum_sharpe`.
+
+| antal testede varianter | E[maks Sharpe] ved sigma_SR = 1 | tærsklen stiger med faktor |
+|---|---|---|
+| 3 | 0,853 | 1,00× (reference) |
+| 10 | 1,575 | 1,85× |
+| 100 | 2,531 | 2,97× |
+| 1.000 | 3,255 | 3,82× |
+| **10.000** | **3,861** | **4,53×** |
+
+**En strategi fundet blandt 10.000 skal have fire en halv gange så høj observeret
+Sharpe som en fundet blandt tre, for at være lige troværdig.** Det er den pris man
+betaler for at søge bredt, og den er uundgåelig.
+
+> **Rettet 2026-09-17.** Tabellen stod tidligere med `√(2 ln N)` og sluttede på
+> 2,90× ved 10.000. Det var forkert. `√(2 ln N)` er kun rækkens førsteled, og ved
+> N = 3 er man ingen steder nær det asymptotiske område: leddet overvurderer den
+> absolutte tærskel med 75% ved N = 3 og 11% ved N = 10.000, og fordi nævneren
+> rammer mest ved siden af, blev hele forholdet 36% for mildt. Prisen for bred
+> søgning er altså større end PRD'en først skrev, ikke mindre.
+>
+> Verificeret tre gange uafhængigt af hinanden: numerisk integration af
+> E[maks] = ∫ x·N·φ(x)·Φ(x)^(N-1) dx, Monte Carlo med 400.000 trækninger pr. N
+> (40.000 ved N = 10.000), og den lukkede form ovenfor. De tre giver forholdet
+> 4,551 / 4,551 / 4,527 ved N = 10.000 mod tre. Den gamle approksimation gav 2,895.
 
 Det praktiske problem er ikke at søge. Det er at søge og **ikke tælle**. En bred søgning
 hvor tælleren rapporteres er legitim videnskab. En bred søgning hvor man husker vinderen og
