@@ -5,7 +5,8 @@ fra 2019-05-06, ATR er målt som fordeling, spread er målt, ruinmodellen kører
 fordelingen i stedet for et punktestimat, og alle Topstep-regler er verificeret ordret hos
 primærkilden. **A1-A7, B1-B3 og B6 er besvaret.**
 
-**Sizing er afgjort som et bånd, ikke en celle: 6,4-7,1% af MLL ved p90 med 1 MNQ** (§5).
+**Sizing var afgjort som et bånd: 6,4-7,1% af MLL ved p90 med 1 MNQ** (§5). **Genåbnet
+2026-09-19** af Mads' disciplinregler — $250 pr. handel, højst én afgjort handel om dagen.
 Timeframen afgøres i B4 på edge-grunde.
 
 **Næste fase er B4 — edge-hypotesen.** Det er projektets egentlige opgave, og alt hidtil
@@ -41,7 +42,9 @@ Hvor vi står, og hvad der mangler. **Kørte faser er faktuelle; kommende faser 
 - **Omkostning:** $2,627 pr. rundtur i RTH, dekomponeret og verificeret. Kun slippage er
   stadig et skøn.
 - **Sizing:** risikobåndet **6,4-7,1% af MLL ved p90** med 1 MNQ. Ikke én celle — tre
-  timeframes rammer båndet og er uadskillelige.
+  timeframes rammer båndet og er uadskillelige. **Genåbnet 2026-09-19:** Mads'
+  disciplinregler sætter risikoen til $250 pr. handel og højst én afgjort handel om dagen.
+  Se `PRD_FASE3_B4_EDGE.md` §3a-3c.
 - **Timeframe-vindue:** 15m og nedad. 1h og 4h er ude.
 - **Handelsvindue og fladning:** kun US RTH, sidste indgang 14:30 CT, hård udfladning
   14:50 CT.
@@ -236,17 +239,43 @@ skal ligge i koden.**
 > flade konti kl. **15:08 CT**. Handel genoptages kl. **17:00 CT**.
 > "Topstep is a day trading program" — swingpositioner findes ikke.
 
-| | CT | dansk tid (sommer, 7t) | dansk tid (vinter, 6t) |
-|---|---|---|---|
-| Handelsdøgnet åbner | 17:00 | 00:00 | 23:00 |
-| US RTH åbner | 08:30 | 15:30 | 14:30 |
-| US RTH lukker | 15:00 | 22:00 | 21:00 |
-| Topstep begynder at flade | 15:08 | 22:08 | 21:08 |
-| **Alt skal være fladt** | **15:10** | **22:10** | **21:10** |
+**Handelsdagen i dansk tid — referencetabellen.** Godkendt af Mads 2026-09-21. Dansk tid står
+først; New York-tid er børsens egen tid; Chicago-tid (CT) er den Topstep, CME og koden regner i,
+og den ligger altid en time efter New York.
 
-Forskydningen er 7 timer det meste af året og 6 timer i den uge omkring slutningen af
-oktober hvor USA og EU skifter sommertid på forskellige datoer. **Koden skal regne i
-America/Chicago og konvertere, ikke hardkode 22:10.**
+| hvad | dansk tid, normalt | dansk tid, i skifteugerne | New York-tid | CT |
+|---|---|---|---|---|
+| Handelsdøgnet åbner (CME) | 00:00 | 23:00 | 18:00 | 17:00 |
+| US-børsen åbner | 15:30 | 14:30 | 09:30 | 08:30 |
+| **Sidste indgang** (vores regel) | **21:30** | 20:30 | 15:30 | 14:30 |
+| **Alt fladt** (vores regel) | **21:50** | 20:50 | 15:50 | 14:50 |
+| US-børsen lukker | 22:00 | 21:00 | 16:00 | 15:00 |
+| Topstep begynder at flade | 22:08 | 21:08 | 16:08 | 15:08 |
+| Topsteps deadline | 22:10 | 21:10 | 16:10 | 15:10 |
+
+"Normalt" er hele året undtagen skifteugerne. **I skifteugerne ligger alt en time tidligere i
+dansk tid** — både i oktober og i marts, aldrig senere.
+
+**Forskydningen er 7 timer både sommer og vinter.** Chicago og København skifter begge
+tid, med samme ene time, så forskellen er den samme når begge har sommertid og når ingen
+af dem har. De 6 timer opstår kun i de uger hvor USA og EU står på hver sin side af et
+skift — **to til tre uger i marts og én uge omkring 1. november**:
+
+| periode | USA | EU | handelsdage med 6 timers forskel |
+|---|---|---|---|
+| efterår 2026 | sommertid slutter søn. 1. nov. | sommertid slutter søn. 25. okt. | **man. 26. – fre. 30. okt. 2026** |
+| forår 2027 | sommertid begynder søn. 14. mar. | sommertid begynder søn. 28. mar. | **man. 15. – tor. 25. mar. 2027** (26. marts er langfredag, NYSE lukket) |
+| efterår 2027 | sommertid slutter søn. 7. nov. | sommertid slutter søn. 31. okt. | **man. 1. – fre. 5. nov. 2027** |
+
+Reglerne bag datoerne står med kilde i `REGLER_VERIFICERET.md` §2. **Rettet 2026-09-19:**
+kolonnen hed før "vinter, 6t", og teksten nævnte kun oktober. Om vinteren er forskellen
+7 timer, og martsskiftet manglede. Tallene i 6-timers-kolonnen var rigtige, kun
+overskriften og forklaringen var forkerte.
+
+**Koden skal regne i America/Chicago og konvertere, ikke hardkode 22:10.** Rettelsen her
+viser hvorfor: en hardkodet dansk tid ville ramme forkert fem handelsdage i oktober 2026 og
+ni i marts 2027, og det er de dage hvor fladningen skal ske en time tidligere end normalt i
+dansk tid.
 
 **Børsen selv er åben ~23 timer i døgnet** (CME Globex, verificeret hos CME 2026-09-13).
 Det er to forskellige ting: børsens åbningstid og Topsteps regel. Topsteps deadline ligger
@@ -365,7 +394,13 @@ Ved NQ 29.639,50 og ATR_15m 0,168% er 1 ATR = 49,79 point = **R = $99,59** pr. k
 
 ---
 
-## 5. Positionsstørrelse og timeframe — AFSLUTTET
+## 5. Positionsstørrelse og timeframe — GENÅBNET 2026-09-19
+
+> **Genåbnet af disciplinreglerne** (`PRD_FASE3_B4_EDGE.md` §3a): $250 pr. handel (12,5% af
+> MLL), højst én afgjort handel om dagen, dage uden handel tilladt, og BE-flyt ved +1,2R.
+> Alt nedenfor er regnet ved 1-3 handler dagligt, binært vind/tab og risiko som ATR-multipel.
+> **Tallene er rigtige for de antagelser, men antagelserne gælder ikke længere.** Ruinmodellen
+> skal køres med reglerne før båndet eller beståelsesraterne bruges igen.
 
 **Fase 2 kørt 2026-09-13.** Rapport: `research/output/mll_ruin_v2_k55.md`. Præregistrering:
 `research/prereg/fase2_valgregel.md`. Alle fem kriterier K1–K5 holdt.

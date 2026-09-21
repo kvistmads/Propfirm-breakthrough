@@ -47,6 +47,28 @@ CME publicerer **ikke** "initial margin" eller "day-trade margin" — det er bro
 > **Uden betydning for strategien**, fordi vi er flade 14:50 CT. Men kod ikke en
 > sessionsfilter på den uden at holde den op mod det faktiske datafeed først.
 
+### Tidsforskellen mellem CT og dansk tid — verificeret 2026-09-19
+
+Tabellen ovenfor viser dansk sommertid. **Forskellen er 7 timer både sommer og vinter**;
+kun i de uger hvor USA og EU står på hver sin side af et skift er den 6.
+
+| regel | værdi | ordret kilde |
+|---|---|---|
+| USA, sommertid begynder | 2. søndag i marts, 02:00 lokal tid | NIST: "begins at 2:00 a.m. on the second Sunday of March". Energy Policy Act of 2005 |
+| USA, sommertid slutter | 1. søndag i november, 02:00 lokal tid | NIST: "ends at 2:00 a.m. on the first Sunday of November". For 2026: "from March 8 at 2 a.m. (local time) to November 1 at 2 a.m." |
+| EU, sommertid begynder | sidste søndag i marts, 01:00 GMT | Direktiv 2000/84/EF art. 2: "at 1.00 a.m., Greenwich Mean Time, on the last Sunday in March" |
+| EU, sommertid slutter | sidste søndag i oktober, 01:00 GMT | Direktiv 2000/84/EF art. 3: "at 1.00 a.m., Greenwich Mean Time, on the last Sunday in October" |
+| Danmark, 2026 | 29. marts – 25. oktober 2026 | borger.dk: "Sommertiden begynder søndag den 29. marts 2026 og slutter søndag den 25. oktober 2026". Hjemmel: lov om anvendelse af sommertid og anordning om sommertid fra 2002 |
+
+**Handelsdage med 6 timers forskel:** 26.–30. oktober 2026, 15.–25. marts 2027 (26. marts
+er langfredag) og 1.–5. november 2027. Datoerne for 2027 er afledt af reglerne ovenfor og efterprøvet med
+IANA-tidszonedatabasen (`America/Chicago` mod `Europe/Copenhagen`) — de står ikke ordret hos
+nogen af kilderne.
+
+Kilder: [NIST, Daylight Saving Time Rules](https://www.nist.gov/pml/time-and-frequency-division/popular-links/daylight-saving-time-dst) ·
+[EUR-Lex, direktiv 2000/84/EF](https://eur-lex.europa.eu/LexUriServ/LexUriServ.do?uri=CELEX:32000L0084:EN:HTML) ·
+[borger.dk, Sommertid](https://www.borger.dk/miljoe-og-energi/Energi/Sommertid)
+
 ---
 
 ## 3. Trading Combine, $50K
