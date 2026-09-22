@@ -1,7 +1,9 @@
 # B4 — hypoteser
 
 **Skrevet:** 2026-09-22 af overblikssessionen. Leverancen fra `PRD_FASE3_B4_EDGE.md` §6.
-**Status:** kandidat 1 er specificeret. Ingen edge-test er kørt. Kandidat 2 og frem mangler.
+**Status:** kandidat 1 er specificeret, og kernen er revideret 2026-09-22 efter den første
+signaloptælling (se "Kernens historik"). Ingen edge-test er kørt, intet udfald er set.
+Kandidat 2 og frem mangler.
 
 ---
 
@@ -44,19 +46,43 @@ samme deltagere har en interesse i at forsvare niveauet når prisen vender tilba
 
 ### Kernen — fast, søges ikke
 
-| element | regel | videoen |
+Besluttet 2026-09-22. Rækkefølgen er videoens: range → udbrud → prisen forlader zonen →
+prisen vender senere tilbage → handel på retesten. Eksemplet er en demand-zone; supply er
+spejlvendt.
+
+| element | regel | kilde |
 |---|---|---|
 | Timeframe | 15m | vennen |
-| Zone | **Pivot:** basislyset er lyset lige før udbrudslyset. Demand: basislyset er rødt (close < open), udbrudslyset lukker **over** basislysets high. Supply: omvendt. Zonen går fra basislysets high til low, **væger medregnet** | 8:47 |
-| Gyldig fra | Udbrudslysets lukning. Før det findes zonen ikke | — |
-| Frisk | Kun første berøring efter dannelse | 15:55 |
-| Dør | Ved første berøring, uanset tidspunkt. Ved kontraktskift (nyt `instrument_id`) | — |
-| Indgang | Limitordre på zonens nære kant — demand: zonens high, supply: zonens low | 9:50 |
-| Stop | Zonens fjerne kant | 9:50 |
-| Mål | 2R. Videoen bruger fast R med 3R som eksempel; 2R er vores beslutning | 16:57, PRD §3 |
-| Tidsvindue | Berøringen skal ske 15:30-21:30 dansk tid. Zonen må være dannet når som helst, også om natten | STRATEGI §3 |
-| Stoploft | Zonehøjde ≤ 0,429% af prisen (125 point ved NQ 29.138), så 1 MNQ ≤ $250 | PRD §3c |
-| Kontrakter | `floor(250 / (stop_pt × 2))` | PRD §3c |
+| **1. Udbrud** | Basislyset er lyset lige før udbrudslyset. Basislyset er rødt (close < open), og udbrudslyset lukker **over** basislysets high. Zonen går fra basislysets high til low, **væger medregnet**. Højden H = high − low. Zonen findes fra udbrudslysets lukning | video 8:47 |
+| Buffer | B = 10% af H. Indgangsniveauet er E = high + B | Mads, 2026-09-22 |
+| **2. Prisen forlader zonen** | Zonen bliver **aktiv** ved det første lys, fra og med udbrudslyset, hvis low ligger over E. Indtil da tæller berøringer ikke. **Lukker et lys under zonens low før aktivering, er zonen ugyldig** | video 7:31; Mads, 2026-09-22 |
+| **3. Retest** | Første lys efter aktiveringen hvis low ≤ E. Det er berøringen. Zonen dør ved den, uanset tidspunkt | video 15:55 |
+| Indgang | Limitordre på E. Fyldes ved berøringen | video 9:50, med Mads' buffer |
+| Stop | Zonens low | video 9:50 |
+| Risiko | E − low = 1,1 × H | — |
+| Mål | 2R fra E. Videoen bruger fast R med 3R som eksempel; 2R er vores beslutning | video 16:57, PRD §3 |
+| Tidsvindue | Berøringen skal ske 15:30-21:30 dansk tid. Zonen må være dannet og aktiveret når som helst, også om natten | STRATEGI §3 |
+| Kontraktskift | Zonen dør ved nyt `instrument_id` | — |
+| Stoploft | 1,1 × H ≤ 0,429% af prisen (125 point ved NQ 29.138), altså H ≤ 0,39% (113,6 point) | PRD §3c |
+| Kontrakter | `floor(250 / (1,1 × H_pt × 2))` | PRD §3c |
+
+### Kernens historik
+
+| version | forskel | hvorfor den blev ændret |
+|---|---|---|
+| v1, 2026-09-22 (commit 11d68f2) | Første berøring efter udbrudslyset er signalet. Ingen buffer | Optællingen viste at **55,4% af signalerne var berøringer i lyset lige efter udbruddet** — prisen havde ikke forladt zonen. Det er ikke videoens retest. Ændret før noget udfald er set |
+| v2, 2026-09-22 | Trin 2 (zonen skal forlades, ugyldig ved lukning igennem) og bufferen på 10% | — |
+
+### Mads' forventning, skrevet før edge-testen
+
+**Retesten holder cirka 9 ud af 10 gange**, hvis zonerne er sat rigtigt (Mads, 2026-09-22).
+Edge-testen måler to ting, så forventningen kan efterprøves:
+
+- **holder:** prisen når +1R fra E, før stoppet rammes
+- **vinder:** prisen når +2R fra E, før stoppet rammes — det er dette tal der afgør edgen
+
+At zonen holder er ikke det samme som at handlen vinder. En handel kan holde og alligevel
+lukkes 21:50 eller i BE uden at nå 2R.
 
 ### Varianter — søges og tælles
 
@@ -72,13 +98,14 @@ Hver variant tæller med i N for den deflaterede tærskel.
 | Filter 6: retning på højere timeframe | til / fra | 15:13 |
 | Filter 7: demand i nederste halvdel, supply i øverste | til / fra | 15:35 |
 | Stop | på kanten / med afstand | 9:50 mod 16:57 |
+| Buffer | 10% / 0% (videoens kant) | Mads mod 9:50 |
 | Zonetype | pivot / range | 8:47 |
 | Basislysets farve | streng / enhver farve | 9:19 |
 | BE | ingen / 1,0R / 1,2R | PRD §3b |
 
 Filter 8 (frisk zone) er i kernen. Filtrene 1-7 alene giver 128 kombinationer, og
-tærsklen stiger med 3,07× mod N = 3. Krydses de med alle øvrige varianter, er N = 3.072
-(128 × 2 × 2 × 2 × 3), og faktoren er 4,20×. Hvor mange der faktisk krydses, afgøres når
+tærsklen stiger med 3,07× mod N = 3. Krydses de med alle øvrige varianter, er N = 6.144
+(128 × 2 × 2 × 2 × 3 × 2), og faktoren er 4,41×. Hvor mange der faktisk krydses, afgøres når
 edge-testen præregistreres — tallet der rapporteres er det faktiske N, ikke dette loft.
 
 ### Åbne definitioner — fastlægges før edge-testen præregistreres
@@ -90,8 +117,8 @@ edge-testen præregistreres — tallet der rapporteres er det faktiske N, ikke d
 - **Sweep, likviditet foran, flip:** operationelle definitioner. LuxAlgo's EQH/EQL (lige
   toppe og bunde inden for 0,1 ATR) er inspiration, ikke kode (licensen er CC BY-NC-SA).
 - **Højere timeframe:** hvilken — 1h eller 4h — og om den kun bruges som filter.
-- **Fyldning:** tæller en berøring af kanten som fyldt, eller kræves handel gennem kanten
-  med ét tick?
+- **Fyldning:** tæller en berøring af E som fyldt, eller kræves handel gennem E med ét
+  tick?
 - **Stopafstand i varianten "med afstand":** i tick, i procent af zonen eller i ATR.
 
 ### Tjeklisten (PRD §6)
@@ -102,14 +129,18 @@ edge-testen præregistreres — tallet der rapporteres er det faktiske N, ikke d
 | signaler | Kernen ovenfor, plus de filtre søgningen vælger |
 | data | NQ.v.0 1m → 15m. Døgnserie til zoner, RTH-maske til berøringer |
 | timing | Indgang 15:30-21:30 dansk tid. Fladt 21:50. Én afgjort handel om dagen |
-| eksekvering | Limitordre på nær kant med vedhæftet stop og mål (bracket). Fyldningsregel åben |
+| eksekvering | Limitordre på E (zonens kant + 10% buffer) med vedhæftet stop og mål (bracket). Lægges når zonen er aktiv. Fyldningsregel åben |
 | sizing | Højst $250, kontrakter rundet ned. Zoner over stoploftet handles ikke |
 | afstemning | Efter hver ordrehændelse læses position og åbne ordrer fra brokeren og holdes op mod bottens egen. Afvigelse → ingen nye ordrer, alarm |
 | risiko | Disciplinreglerne i PRD §3a. BE efter varianten der vinder |
 | genopretning | Zoner kan genberegnes fra prisdata. Det eneste der skal gemmes er hvilke zoner der er brugt og dagens tællere. Ved genstart læses det fra disk og afstemmes mod brokeren |
 | logning | Hver zone (dannet, berørt, død), hver ordre, og en journal pr. dag — Mads' regel |
 
-### Første skridt
+### Signaloptællinger
 
-Signaloptællingen: `research/prereg/b4_k1_optaelling.md`. Den ser ikke på udfald og lægger
-intet til tælleren.
+Optællingerne ser ikke på udfald og lægger intet til tælleren.
+
+| optælling | kerne | præregistrering | resultat |
+|---|---|---|---|
+| 1 | v1 | `research/prereg/b4_k1_optaelling.md` | 1.940 af 2.012 dage med signal, 96,4% (95,5-97,1). Kategori ≥ 590. 55,4% af signalerne i lyset lige efter udbruddet. `research/output/b4_k1_optaelling.md` |
+| 2 | v2 | `research/prereg/b4_k1_optaelling_v2.md` | endnu ikke kørt |
