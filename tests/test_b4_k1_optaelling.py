@@ -13,9 +13,15 @@ Dertil tre ting:
 3. **Intet efter berøringslyset indgår.** Serien skæres af lige efter hver zones
    slutlys, og af slutlyset beholdes kun den kant der afgør berøringen. Zonens forløb
    må ikke ændre sig.
+
+Kerne v2 (``research/prereg/b4_k1_optaelling_v2.md``) har sin egen blok nederst: aktivering,
+ugyldighed før aktivering, at berøringer før aktivering ignoreres, bufferen, risiko 1,1 × H,
+stoploftet på risikoen, kontraktskift i alle faser, de fem forløb, en reference lys for lys
+i eksakte brøker og en test af hele kørslen. v1-testene ovenfor står uændrede.
 """
 from __future__ import annotations
 
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -512,7 +518,7 @@ def test_pris_hentes_kun_gennem_load_in_sample():
 
 def test_zonelisten_skrives_ikke_i_repoet():
     with pytest.raises(RuntimeError, match="repoet"):
-        k1.main(["--zoner", str(k1.ROOT / "research" / "output" / "zoner.parquet")])
+        k1.main(["--kerne", "v1", "--zoner", str(k1.ROOT / "research" / "output" / "zoner.parquet")])
 
 
 def test_main_fra_ende_til_anden_paa_syntetiske_data(monkeypatch, tmp_path):
@@ -524,7 +530,7 @@ def test_main_fra_ende_til_anden_paa_syntetiske_data(monkeypatch, tmp_path):
     monkeypatch.setattr(k1, "committede", lambda stier: {k1._rel(s): "f" * 40 for s in stier})
     monkeypatch.setattr(k1, "_git", lambda *a: type("Svar", (), {"stdout": "e" * 40})())
     monkeypatch.setattr(k1, "OUT", tmp_path / "output")
-    k1.main(["--zoner", str(tmp_path / "zoner.parquet")])
+    k1.main(["--kerne", "v1", "--zoner", str(tmp_path / "zoner.parquet")])
 
     assert kaldt == ["NQ.v.0"]
     md = (tmp_path / "output" / "b4_k1_optaelling.md").read_text(encoding="utf-8")
@@ -560,9 +566,9 @@ def test_koerslen_kraever_committede_og_uaendrede_filer(monkeypatch):
 # Reference lys for lys, og intet efter berøringslyset
 # ---------------------------------------------------------------------------
 
-def _tilfaeldige_barer(n: int, seed: int) -> pd.DataFrame:
+def _tilfaeldige_barer(n: int, seed: int, tick_pt: float = 0.25) -> pd.DataFrame:
     """Tilfældig vandring i hele tick: huller i tid, dojier og fire kontraktblokke, hvoraf
-    én kontrakt vender tilbage."""
+    én kontrakt vender tilbage. Et grovere ``tick_pt`` giver oftere lighed på kanterne."""
     rng = np.random.default_rng(seed)
     trin = rng.choice([1] * 30 + [2, 4, 100], size=n)
     idx = pd.Timestamp("2023-03-01", tz="UTC") + pd.to_timedelta(np.cumsum(trin) * 15, unit="min")
@@ -572,7 +578,7 @@ def _tilfaeldige_barer(n: int, seed: int) -> pd.DataFrame:
     open_ = np.r_[close[0], close[:-1]] + rng.normal(0, 2, n)
     doji = rng.random(n) < 0.05
     open_[doji] = close[doji]
-    tick = lambda x, f: f(np.asarray(x) * 4) / 4
+    tick = lambda x, f: f(np.asarray(x) / tick_pt) * tick_pt     # 0,25: samme som × 4 / 4
     return pd.DataFrame({
         "open": tick(open_, np.round), "close": tick(close, np.round),
         "high": tick(np.maximum(open_, close) + rng.exponential(3, n), np.ceil),
@@ -641,3 +647,483 @@ def test_intet_efter_beroeringslyset_indgaar():
         r2 = _zone(k1.find_zoner(kort), r["basis_i"])
         assert (r2["status"], r2["slut_i"], r2["zone_high"], r2["zone_low"]) == \
             (r["status"], r["slut_i"], r["zone_high"], r["zone_low"])
+
+
+# ===========================================================================
+# Kerne v2 — research/prereg/b4_k1_optaelling_v2.md
+# ===========================================================================
+#
+# Demand-zonen fra BASIS_D har H = 20, B = 2 og E = 10.017. Supply-zonen fra BASIS_S har
+# E = 9.985 − 2 = 9.983. De faste lys ovenfor opfører sig sådan i v2:
+#   UDBRUD_D  low 9.998   ≤ E: aktiverer ikke        OVER      low 10.020 > E: aktiverer
+#   BEROER_D  low 10.014  ≤ E: berøring efter aktivering, ignoreres før
+#   UNDER     high 9.980  < E: aktiverer supply      BEROER_S  high 9.986 ≥ E: berøring
+
+UDBRUD_GAP = (10_020, 10_030, 10_018, 10_025)   # udbrud med low 10.018 > E: aktiverer selv
+UDBRUD_D_DOJI = (10_020, 10_030, 9_998, 10_020)  # udbrud der ikke selv kan være basislys
+I_BUFFER_D = (10_018, 10_021, 10_016, 10_018)   # doji, low 10.016: over high, under E
+GENNEM_D = (9_993, 10_001, 9_990, 9_993)        # doji, close 9.993 < zonens low 9.995
+I_BUFFER_S = (9_978, 9_984, 9_975, 9_978)       # doji, high 9.984: under low, over E
+UDEN = Fraction(0)
+FEM = {"beroert", "ugyldig", "kontraktskift", "aktiv", "aldrig_aktiv"}
+
+
+def _v2(bars: pd.DataFrame, buffer: Fraction = k1.BUFFER_V2) -> pd.DataFrame:
+    return k1.zoner_v2(bars, buffer)
+
+
+def _forloeb(r: pd.Series) -> tuple:
+    return (r["status"], r["aktiv_i"], r["slut_i"])
+
+
+# ---------------------------------------------------------------------------
+# v2 §2: E og bufferen
+# ---------------------------------------------------------------------------
+
+def test_v2_E_er_zonens_kant_plus_ti_procent_af_hoejden():
+    d, s = _barer([BASIS_D, UDBRUD_D, OVER]), _barer([BASIS_S, UDBRUD_S, UNDER])
+    assert (_zone(_v2(d), 0)["E"], _zone(_v2(s), 0)["E"]) == (10_017, 9_983)
+    assert (_zone(_v2(d, UDEN), 0)["E"], _zone(_v2(s, UDEN), 0)["E"]) == (10_015, 9_985)
+
+
+def test_v2_bufferen_flytter_beroeringen_ud_til_E():
+    """low 10.016 er over zonens high, men under E: en berøring med buffer, ikke uden."""
+    bars = _barer([BASIS_D, UDBRUD_D, OVER, I_BUFFER_D])
+    assert _forloeb(_zone(_v2(bars), 0)) == ("beroert", 2, 3)
+    assert _forloeb(_zone(_v2(bars, UDEN), 0)) == ("aktiv", 2, -1)
+
+
+def test_v2_supply_bufferen_flytter_beroeringen_ud_til_E():
+    bars = _barer([BASIS_S, UDBRUD_S, UNDER, I_BUFFER_S])
+    assert _forloeb(_zone(_v2(bars), 0)) == ("beroert", 2, 3)
+    assert _forloeb(_zone(_v2(bars, UDEN), 0)) == ("aktiv", 2, -1)
+
+
+@pytest.mark.parametrize("low, beroert", [(10_017.0, True), (10_017.25, False)])
+def test_v2_beroering_er_low_mindre_end_eller_lig_E(low, beroert):
+    lys = (10_020, 10_022, low, 10_020)
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D, OVER, lys])), 0)
+    assert r["status"] == ("beroert" if beroert else "aktiv")
+
+
+@pytest.mark.parametrize("high, beroert", [(9_983.0, True), (9_982.75, False)])
+def test_v2_supply_beroering_er_high_stoerre_end_eller_lig_E(high, beroert):
+    lys = (9_978, high, 9_975, 9_978)
+    r = _zone(_v2(_barer([BASIS_S, UDBRUD_S, UNDER, lys])), 0)
+    assert r["status"] == ("beroert" if beroert else "aktiv")
+
+
+# ---------------------------------------------------------------------------
+# v2 §2: aktivering
+# ---------------------------------------------------------------------------
+
+def test_v2_aktivering_er_foerste_lys_med_low_over_E():
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D, OVER, BEROER_D])), 0)
+    assert _forloeb(r) == ("beroert", 2, 3) and r["signal"]
+
+
+@pytest.mark.parametrize("low, aktiv", [(10_017.0, False), (10_017.25, True)])
+def test_v2_aktivering_kraever_low_strengt_over_E(low, aktiv):
+    lys = (10_020, 10_025, low, 10_020)
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D, lys])), 0)
+    assert _forloeb(r) == (("aktiv", 2, -1) if aktiv else ("aldrig_aktiv", -1, -1))
+
+
+@pytest.mark.parametrize("high, aktiv", [(9_983.0, False), (9_982.75, True)])
+def test_v2_supply_aktivering_kraever_high_strengt_under_E(high, aktiv):
+    lys = (9_978, high, 9_975, 9_978)
+    r = _zone(_v2(_barer([BASIS_S, UDBRUD_S, lys])), 0)
+    assert _forloeb(r) == (("aktiv", 2, -1) if aktiv else ("aldrig_aktiv", -1, -1))
+
+
+def test_v2_udbrudslyset_kan_selv_vaere_aktiveringslyset():
+    """Fra og med udbrudslyset. Tiden til aktivering er da −0,25 timer (tillægget)."""
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_GAP, BEROER_D])), 0)
+    assert _forloeb(r) == ("beroert", 1, 2) and r["signal"]
+    assert (r["tid_til_aktiv_timer"], r["tid_efter_aktiv_timer"]) == (-0.25, 0.0)
+    assert r["beroering_lige_efter_aktivering"] and r["zonealder_timer"] == 0.0
+
+
+def test_v2_aktiveringslyset_er_ikke_selv_en_beroering():
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D, OVER])), 0)
+    assert _forloeb(r) == ("aktiv", 2, -1)
+
+
+# ---------------------------------------------------------------------------
+# v2 §2: berøringer før aktivering tæller ikke, og zonen lever videre
+# ---------------------------------------------------------------------------
+
+def test_v2_beroeringer_foer_aktivering_taeller_ikke_og_zonen_lever_videre():
+    bars = _barer([BASIS_D, UDBRUD_D, BEROER_D, BEROER_D, OVER, BEROER_D])
+    z = _v2(bars)
+    r = _zone(z, 0)
+    assert _forloeb(r) == ("beroert", 4, 5) and r["signal"]
+    assert int(z["signal"].sum()) == 1
+    assert _zone(_zoner(bars), 0)["slut_i"] == 2          # v1 tog den første
+
+
+def test_v2_en_beroering_foer_aktivering_i_vinduet_er_ikke_et_signal():
+    tider = [f"{DAG} 09:00", f"{DAG} 09:15", f"{DAG} 09:30", f"{DAG} 16:00", f"{DAG} 16:15"]
+    z = _v2(_barer([BASIS_D, UDBRUD_D, BEROER_D, OVER, BEROER_D], tider_ct=tider))
+    r = _zone(z, 0)
+    assert _forloeb(r) == ("beroert", 3, 4)
+    assert not r["i_vindue"] and not z["signal"].any()
+
+
+# ---------------------------------------------------------------------------
+# v2 §2: ugyldig før aktivering
+# ---------------------------------------------------------------------------
+
+def test_v2_ugyldig_ved_lukning_under_zonens_low_foer_aktivering():
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D_DOJI, GENNEM_D, OVER, BEROER_D])), 0)
+    assert _forloeb(r) == ("ugyldig", -1, 2) and not r["signal"]
+
+
+@pytest.mark.parametrize("close, ugyldig", [(9_995.0, False), (9_994.75, True)])
+def test_v2_ugyldig_kraever_close_strengt_under_low_og_low_alene_er_nok_ikke(close, ugyldig):
+    lys = (close, 10_001, 9_990, close)           # low 9.990 er under zonen i begge tilfælde
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D_DOJI, lys, OVER, BEROER_D])), 0)
+    assert _forloeb(r) == (("ugyldig", -1, 2) if ugyldig else ("beroert", 3, 4))
+
+
+@pytest.mark.parametrize("close, ugyldig", [(10_005.0, False), (10_005.25, True)])
+def test_v2_supply_ugyldig_kraever_close_strengt_over_high(close, ugyldig):
+    lys = (close, 10_010, 10_000, close)
+    r = _zone(_v2(_barer([BASIS_S, UDBRUD_S, lys, UNDER, BEROER_S])), 0)
+    assert _forloeb(r) == (("ugyldig", -1, 2) if ugyldig else ("beroert", 3, 4))
+
+
+def test_v2_efter_aktivering_er_en_lukning_igennem_zonen_en_beroering():
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D, OVER, GENNEM_D])), 0)
+    assert _forloeb(r) == ("beroert", 2, 3)
+
+
+# ---------------------------------------------------------------------------
+# v2 §2: risiko 1,1 × H, stoploftet og sizing på risikoen
+# ---------------------------------------------------------------------------
+
+def test_v2_risikoen_er_1_1_gange_H_og_sizing_regnes_paa_den():
+    bars = _barer([BASIS_D, UDBRUD_D, OVER, BEROER_D])
+    r = _zone(_v2(bars), 0)
+    assert r["zonehoejde_pt"] == pytest.approx(58.276)
+    assert r["risiko_pt"] == pytest.approx(1.1 * 58.276)
+    assert r["kontrakter"] == 1                               # 250 / (2 × 64,10) = 1,95
+    assert r["omk_R_netto"] == pytest.approx(2.627 / (2 * 1.1 * 58.276))
+    r0 = _zone(_v2(bars, UDEN), 0)
+    assert (r0["risiko_pt"], r0["kontrakter"]) == (pytest.approx(58.276), 2)
+    assert r0["omk_R_netto"] == pytest.approx(2.627 / (2 * 58.276))
+
+
+def _stop_v2(basis_low: float, buffer: Fraction = k1.BUFFER_V2) -> pd.Series:
+    basis = (25_050, 25_080, basis_low, 25_000)
+    udbrud = (25_000, 25_095, 25_000, 25_090)
+    aktiv = (25_095, 25_100, 25_092, 25_095)      # low over E med og uden buffer
+    beroer = (25_085, 25_090, 25_079, 25_085)     # low under E med og uden buffer
+    return _zone(_v2(_barer([basis, udbrud, aktiv, beroer]), buffer), 0)
+
+
+def test_v2_stoploftet_er_1_1_gange_H_inklusive_0429_pct():
+    """H = 97,50 ved close 25.000: 1,1 × H = 107,25 point = præcis 0,429%."""
+    r = _stop_v2(24_982.50)
+    assert r["hoejde_pct"] * 1.1 == pytest.approx(0.429)
+    assert r["status"] == "beroert" and r["under_stoploft"] and r["signal"]
+
+
+def test_v2_et_tick_over_stoploftet_afvises_selvom_H_alene_er_under():
+    r = _stop_v2(24_982.25)                       # H = 97,75: 1,1 × H = 0,4301%, H = 0,391%
+    assert r["i_vindue"] and not r["under_stoploft"] and not r["signal"]
+    r0 = _stop_v2(24_982.25, UDEN)                # uden buffer er risikoen H
+    assert r0["under_stoploft"] and r0["signal"]
+
+
+# ---------------------------------------------------------------------------
+# v2 §2: kontraktskift i alle faser, vinduet og tiderne
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("lys, iid, forloeb", [
+    ([BASIS_D, UDBRUD_D, OVER], [1, 1, 2], ("kontraktskift", -1, 2)),          # aktiverer ikke
+    ([BASIS_D, UDBRUD_D_DOJI, GENNEM_D], [1, 1, 2], ("kontraktskift", -1, 2)),  # ikke ugyldig
+    ([BASIS_D, UDBRUD_D, BEROER_D, OVER], [1, 1, 1, 2], ("kontraktskift", -1, 3)),
+    ([BASIS_D, UDBRUD_D, OVER, BEROER_D], [1, 1, 1, 2], ("kontraktskift", 2, 3)),
+    ([BASIS_D, UDBRUD_GAP, BEROER_D], [1, 2, 2], ("kontraktskift", -1, 1)),     # før gyldig
+])
+def test_v2_zonen_doer_ved_kontraktskift_i_alle_faser(lys, iid, forloeb):
+    r = _zone(_v2(_barer(lys, iid=iid)), 0)
+    assert _forloeb(r) == forloeb and not r["signal"]
+
+
+@pytest.mark.parametrize("tid, signal", [("08:15", False), ("08:30", True),
+                                         ("14:15", True), ("14:30", False)])
+def test_v2_vinduet_gaelder_beroeringen(tid, signal):
+    beroering = _ct(f"{DAG} {tid}")
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D, OVER, BEROER_D], beroering - 3 * KVARTER)), 0)
+    assert r["status"] == "beroert" and bool(r["signal"]) is signal
+
+
+@pytest.mark.parametrize("tid, signal", [("11:15", True), ("11:30", False)])
+def test_v2_halve_dage(tid, signal):
+    beroering = _ct(f"2023-11-24 {tid}")
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D, OVER, BEROER_D], beroering - 3 * KVARTER)), 0)
+    assert bool(r["signal"]) is signal
+
+
+def test_v2_aktivering_om_natten_og_beroering_i_vinduet_er_et_signal():
+    """Nabolys i serien, som i v1: berøringen 09:00 er lyset lige efter aktiveringslyset."""
+    tider = [f"{DAG} 02:00", f"{DAG} 02:15", f"{DAG} 02:30", f"{DAG} 09:00"]
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D, OVER, BEROER_D], tider_ct=tider)), 0)
+    assert r["signal"] and not r["dannet_i_rth"]
+    assert (r["tid_til_aktiv_timer"], r["tid_efter_aktiv_timer"]) == (0.0, 6.25)
+    assert r["beroering_lige_efter_aktivering"]
+
+
+def test_v2_beroering_uden_for_vinduet_bruger_zonen():
+    tider = [f"{DAG} 02:00", f"{DAG} 02:15", f"{DAG} 02:30", f"{DAG} 03:00", f"{DAG} 09:30"]
+    z = _v2(_barer([BASIS_D, UDBRUD_D, OVER, BEROER_D, BEROER_D], tider_ct=tider))
+    assert _forloeb(_zone(z, 0)) == ("beroert", 2, 3)
+    assert not z["signal"].any()
+
+
+def test_v2_tiderne_omkring_aktiveringen():
+    """Udbruddet lukker 09:30, aktiveringslyset åbner 09:45 og lukker 10:00, berøringslyset
+    åbner 10:15."""
+    r = _zone(_v2(_barer([BASIS_D, UDBRUD_D, BEROER_D, OVER, OVER, BEROER_D])), 0)
+    assert _forloeb(r) == ("beroert", 3, 5)
+    assert (r["tid_til_aktiv_timer"], r["tid_efter_aktiv_timer"]) == (0.25, 0.25)
+    assert r["zonealder_timer"] == 0.75
+    assert not r["beroering_lige_efter_aktivering"]
+
+
+# ---------------------------------------------------------------------------
+# v2 §2: fem forløb, og nøgletallene
+# ---------------------------------------------------------------------------
+
+def _fem_scenarier() -> dict[str, pd.DataFrame]:
+    """Én zone i hvert af de fem forløb, hver i sin serie og uden andre zoner."""
+    return {
+        "beroert": _barer([BASIS_D, UDBRUD_D, OVER, BEROER_D]),
+        "ugyldig": _barer([BASIS_D, UDBRUD_D_DOJI, GENNEM_D]),
+        "kontraktskift": _barer([BASIS_D, UDBRUD_D, OVER, BEROER_D], iid=[1, 1, 1, 2]),
+        "aktiv": _barer([BASIS_D, UDBRUD_D, OVER, OVER]),
+        "aldrig_aktiv": _barer([BASIS_D, UDBRUD_D, BEROER_D]),
+    }
+
+
+def test_v2_hver_zone_ender_i_praecis_et_af_fem_forloeb():
+    for status, bars in _fem_scenarier().items():
+        z = _v2(bars)
+        assert len(z) == 1 and z.iloc[0]["status"] == status
+
+
+def _blandet_v2() -> pd.DataFrame:
+    """De fem forløb 14. juni plus et supply-signal 15. juni 08:30, aktiveret om natten."""
+    d15 = "2023-06-15"
+    f = _barer([BASIS_S, UDBRUD_S, UNDER, I_BUFFER_S],
+               tider_ct=[f"{d15} 02:00", f"{d15} 02:15", f"{d15} 02:30", f"{d15} 08:30"])
+    return pd.concat([_v2(b) for b in [*_fem_scenarier().values(), f]], ignore_index=True)
+
+
+def test_v2_noegletallene_og_de_fem_forloeb_summer_til_zoner_dannet_n():
+    row = k1.noegletal_v2(_blandet_v2(), k1.rth_dage(DAG, "2023-06-17"))
+    fem = [row[k] for k, _ in k1.FORLOEB_V2]
+    assert fem == [2, 1, 1, 1, 1] and sum(fem) == row["zoner_dannet_n"] == 6
+    for stam in ("zoner_ugyldige_foer_aktiv", "zoner_aktive_ikke_beroert", "zoner_aldrig_aktive",
+                 "zoner_doede_ved_kontraktskift"):
+        assert row[f"{stam}_pct"] == pytest.approx(100 / 6)
+        lo, hi = wilson_interval(1, 6)
+        assert (row[f"{stam}_ci95_lo_pct"], row[f"{stam}_ci95_hi_pct"]) == \
+            pytest.approx((100 * lo, 100 * hi))
+    assert row["zoner_aldrig_beroert_n"] == 2               # de to censurerede tilsammen
+    assert (row["signaler_n"], row["dage_med_signal_n"], row["RTH_dage_n"]) == (2, 2, 3)
+    assert (row["beroeringer_n"], row["beroeringer_i_vindue_n"], row["afvist_af_stoploft_n"]) == \
+        (2, 2, 0)
+    for q in (10, 50, 90):
+        assert row[f"risiko_pt_p{q}"] == pytest.approx(1.1 * 58.276)
+        assert row[f"zonehoejde_pt_p{q}"] == pytest.approx(58.276)
+        assert row[f"kontrakter_p{q}"] == 1
+    assert row["be_WR_pct_netto_p50"] == pytest.approx((1 + 2.627 / (2 * 1.1 * 58.276)) / 3 * 100)
+    # Tiderne: 14. juni 0 og 0, 15. juni 0 og 5,75 timer (02:45 til 08:30).
+    assert (row["tid_til_aktiv_timer_p50"], row["tid_til_aktiv_timer_p90"]) == (0.0, 0.0)
+    assert (row["tid_efter_aktiv_timer_p50"], row["tid_efter_aktiv_timer_p90"]) == \
+        pytest.approx((2.875, 5.175))
+    assert (row["beroering_lige_efter_aktivering_n"],
+            row["beroering_lige_efter_aktivering_pct"]) == (2, 100.0)
+    assert row["signaler_aktiveret_i_udbrudslyset_n"] == 0
+    assert (row["dannet_uden_for_RTH_n"], row["dannet_uden_for_RTH_pct"]) == (1, 50.0)
+
+
+def test_v2_de_censurerede_forloeb_taelles_hver_for_sig():
+    sc = _fem_scenarier()
+    z = pd.concat([_v2(sc["aktiv"]), _v2(sc["aldrig_aktiv"]), _v2(sc["aldrig_aktiv"])],
+                  ignore_index=True)
+    row = k1.noegletal_v2(z, k1.rth_dage(DAG, "2023-06-15"))
+    assert (row["zoner_aktive_ikke_beroert_n"], row["zoner_aldrig_aktive_n"],
+            row["zoner_aldrig_beroert_n"]) == (1, 2, 3)
+    assert row["zoner_aldrig_aktive_pct"] == pytest.approx(200 / 3)
+
+
+def test_v2_risiko_pt_regnes_kun_over_signaler():
+    """Zonen afvist af stoploftet har en større risiko, men er ikke et signal."""
+    z = pd.concat([_v2(_fem_scenarier()["beroert"]),
+                   _v2(_barer([(25_050, 25_080, 24_982.25, 25_000), (25_000, 25_095, 25_000, 25_090),
+                               (25_095, 25_100, 25_092, 25_095), (25_085, 25_090, 25_079, 25_085)]))],
+                  ignore_index=True)
+    assert z["signal"].tolist() == [True, False]
+    row = k1.noegletal_v2(z, k1.rth_dage(DAG, "2023-06-15"))
+    for q in (10, 50, 90):
+        assert row[f"risiko_pt_p{q}"] == pytest.approx(1.1 * 58.276)
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3, 4])
+@pytest.mark.parametrize("buffer", [k1.BUFFER_V2, UDEN])
+def test_v2_de_fem_forloeb_summer_ogsaa_paa_tilfaeldige_serier(seed, buffer):
+    bars = _tilfaeldige_barer(1500, seed)
+    z = _v2(bars, buffer)
+    row = k1.noegletal_v2(z, k1.rth_dage(bars.index[0], bars.index[-1] + pd.Timedelta(days=1)))
+    assert set(z["status"]) <= FEM
+    assert sum(row[k] for k, _ in k1.FORLOEB_V2) == row["zoner_dannet_n"] == len(z)
+
+
+def test_v2_tabellen_er_v1s_kolonner_plus_de_nye():
+    z, dage = _blandet_v2(), k1.rth_dage(DAG, "2023-06-17")
+    v1, v2 = list(k1.noegletal(z, dage)), list(k1.noegletal_v2(z, dage))
+    assert v2[: len(v1)] == v1
+    assert {f"{s}_pct" for s in ("zoner_ugyldige_foer_aktiv", "zoner_aldrig_aktive",
+                                 "zoner_aktive_ikke_beroert",
+                                 "beroering_lige_efter_aktivering")} <= set(v2)
+    assert {f"{s}_p{q}" for s in ("tid_til_aktiv_timer", "tid_efter_aktiv_timer")
+            for q in (50, 90)} | {f"risiko_pt_p{q}" for q in (10, 50, 90)} <= set(v2)
+    assert [navn for navn, _ in k1.RAEKKER_V2 if navn not in v2] == []
+
+
+def test_v1_tabellens_kolonner_er_optaelling_1s_csv():
+    """Regressionen på data køres før v2. Her låses at v1-tabellens form er den committede."""
+    committet = pd.read_csv(k1.OUT / "b4_k1_optaelling.csv", nrows=0).columns.tolist()
+    assert k1.tabel(_blandet(), k1.rth_dage(DAG, "2023-06-17")).columns.tolist() == committet
+
+
+# ---------------------------------------------------------------------------
+# v2: reference lys for lys i eksakte brøker, og intet efter slutlyset
+# ---------------------------------------------------------------------------
+
+def _reference_v2(bars: pd.DataFrame, buffer: Fraction) -> list[tuple]:
+    """Definitionerne lys for lys i Fraction, uden genveje og uden den skalerede form."""
+    o, h, l, c = ([Fraction(x) for x in bars[k].tolist()] for k in ("open", "high", "low", "close"))
+    iid = bars["instrument_id"].tolist()
+    ud = []
+    for b in range(len(bars) - 1):
+        u = b + 1
+        if c[b] < o[b] and c[u] > h[b]:
+            side = "demand"
+        elif c[b] > o[b] and c[u] < l[b]:
+            side = "supply"
+        else:
+            continue
+        e = h[b] + buffer * (h[b] - l[b]) if side == "demand" else l[b] - buffer * (h[b] - l[b])
+        status, aktiv, slut = None, -1, -1
+        for j in range(u, len(bars)):
+            if iid[j] != iid[b]:
+                status, slut = "kontraktskift", j
+                break
+            if aktiv < 0:
+                if j > u and (c[j] < l[b] if side == "demand" else c[j] > h[b]):
+                    status, slut = "ugyldig", j
+                    break
+                if l[j] > e if side == "demand" else h[j] < e:
+                    aktiv = j
+            elif l[j] <= e if side == "demand" else h[j] >= e:
+                status, slut = "beroert", j
+                break
+        if status is None:
+            status = "aktiv" if aktiv >= 0 else "aldrig_aktiv"
+        ud.append((b, side, status, aktiv, slut))
+    return ud
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3, 4])
+@pytest.mark.parametrize("buffer", [k1.BUFFER_V2, UDEN])
+@pytest.mark.parametrize("tick_pt", [0.25, 1.0])
+def test_find_zoner_v2_er_lig_referencen_i_eksakte_broeker(seed, buffer, tick_pt):
+    bars = _tilfaeldige_barer(1500, seed, tick_pt)
+    z = k1.find_zoner_v2(bars, buffer)
+    faktisk = list(zip(z["basis_i"].tolist(), z["side"].tolist(), z["status"].tolist(),
+                       z["aktiv_i"].tolist(), z["slut_i"].tolist()))
+    assert faktisk == _reference_v2(bars, buffer)
+
+
+def test_referencen_v2_daekker_alle_fem_forloeb_og_lighed_paa_E():
+    """Referencetesten ovenfor er kun noget værd hvis serierne rammer alle forløb og lys
+    med low præcis på E, både efter aktiveringen (berøring) og før (hverken eller)."""
+    status, lighed_beroering, lighed_aktivering = set(), 0, 0
+    for seed, tick_pt in ((1, 0.25), (2, 0.25), (3, 1.0), (4, 1.0)):
+        bars = _tilfaeldige_barer(1500, seed, tick_pt)
+        lo = bars["low"].to_numpy()
+        z = k1.find_zoner_v2(bars)
+        status |= set(z["status"])
+        d = z[(z["side"] == "demand") & (z["status"] == "beroert")]
+        lighed_beroering += int((lo[d["slut_i"]] == d["E"].to_numpy()).sum())
+        # Lys før aktiveringen med low præcis på E: må hverken aktivere eller berøre.
+        for r in z[(z["side"] == "demand") & (z["aktiv_i"] > z["udbrud_i"])].itertuples():
+            lighed_aktivering += int((lo[r.udbrud_i:r.aktiv_i] == r.E).sum())
+    assert status == FEM
+    assert lighed_beroering > 0 and lighed_aktivering > 0
+
+
+@pytest.mark.parametrize("buffer", [k1.BUFFER_V2, UDEN])
+def test_v2_intet_efter_slutlyset_indgaar(buffer):
+    """Af slutlyset beholdes kun det der afgør forløbet: low/high ved en berøring, close ved
+    ugyldighed. Et skift afgøres af instrument_id."""
+    bars = _tilfaeldige_barer(800, seed=5)
+    z = k1.find_zoner_v2(bars, buffer)
+    kandidater = z[z["slut_i"] > z["udbrud_i"]]
+    assert set(kandidater["status"]) == {"beroert", "ugyldig", "kontraktskift"}
+    for _, r in kandidater.sample(min(80, len(kandidater)), random_state=0).iterrows():
+        kort = bars.iloc[: r["slut_i"] + 1].copy()
+        kol = ("low" if r["side"] == "demand" else "high") if r["status"] == "beroert" else "close"
+        kant = kort.iloc[-1][kol]
+        kort.iloc[-1, [kort.columns.get_loc(k) for k in ("open", "high", "low", "close")]] = kant
+        r2 = _zone(k1.find_zoner_v2(kort, buffer), r["basis_i"])
+        assert (r2["status"], r2["aktiv_i"], r2["slut_i"], r2["E"]) == \
+            (r["status"], r["aktiv_i"], r["slut_i"], r["E"])
+
+
+# ---------------------------------------------------------------------------
+# v2: hele kørslen
+# ---------------------------------------------------------------------------
+
+def test_kernen_skal_vaelges():
+    with pytest.raises(SystemExit):
+        k1.main([])
+
+
+def test_main_v2_fra_ende_til_anden_paa_syntetiske_data(monkeypatch, tmp_path):
+    """Kerne v2 og varianten, med datavejen og git skiftet ud. Én demand-zone, aktiveret
+    09:30 CT 14. juni 2023. Lyset 09:45 når E med buffer, men ikke zonens high: et signal i
+    v2, intet i varianten."""
+    df = _fra_15m([OVER, BASIS_D, UDBRUD_D, OVER, I_BUFFER_D, OVER], f"{DAG} 08:45")
+    monkeypatch.setattr(k1.holdout, "load_in_sample", lambda s: df)
+    monkeypatch.setattr(k1, "committede", lambda stier: {k1._rel(s): "f" * 40 for s in stier})
+    monkeypatch.setattr(k1, "_git", lambda *a: type("Svar", (), {"stdout": "e" * 40})())
+    monkeypatch.setattr(k1, "OUT", tmp_path / "output")
+    k1.main(["--kerne", "v2", "--zoner", str(tmp_path / "zoner.parquet")])
+
+    ud = tmp_path / "output"
+    assert not (ud / "b4_k1_optaelling.csv").exists()
+    md = (ud / "b4_k1_optaelling_v2.md").read_text(encoding="utf-8")
+    assert "signaloptælling 2, kerne v2" in md
+    assert "dage_med_signal_n = 1 af 2012" in md
+    assert ("De fem forløb: 1 berørt + 0 ugyldig + 0 kontraktskift + 0 aktiv, ikke berørt + "
+            "0 aldrig aktiv = 1 zoner dannet.") in md
+    assert "**< 390: for få handler — kandidaten parkeres**" in md
+    for navn, _ in k1.RAEKKER_V2:
+        assert f"| {navn} |" in md
+    tab = pd.read_csv(ud / "b4_k1_optaelling_v2.csv")
+    assert tab.columns[:3].tolist() == ["kerne", "periode", "side"]
+    assert len(tab) == 2 * (3 + 8 * 3)
+    for kerne, signaler in (("v2", 1), ("v2_uden_buffer", 0)):
+        hele = tab[(tab["kerne"] == kerne) & (tab["periode"] == "2016-2023")].set_index("side")
+        assert hele.loc["alle", "signaler_n"] == signaler
+        assert hele.loc["alle", "RTH_dage_n"] == 2012
+    assert "| alle | 0 | 0 | 0,0 (0,0–0,2) |" in md           # varianttabellen
+    zoner = pd.read_parquet(tmp_path / "zoner.parquet").set_index("kerne")
+    assert zoner.loc["v2", "status"] == "beroert" and zoner.loc["v2", "signal"]
+    assert zoner.loc["v2_uden_buffer", "status"] == "aktiv"
