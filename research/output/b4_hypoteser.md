@@ -143,4 +143,8 @@ Optællingerne ser ikke på udfald og lægger intet til tælleren.
 | optælling | kerne | præregistrering | resultat |
 |---|---|---|---|
 | 1 | v1 | `research/prereg/b4_k1_optaelling.md` | 1.940 af 2.012 dage med signal, 96,4% (95,5-97,1). Kategori ≥ 590. 55,4% af signalerne i lyset lige efter udbruddet. `research/output/b4_k1_optaelling.md` |
-| 2 | v2 | `research/prereg/b4_k1_optaelling_v2.md` | endnu ikke kørt |
+| 2 | v2 | `research/prereg/b4_k1_optaelling_v2.md` | 1.817 af 2.012 dage med signal, 90,3% (88,9-91,5). Kategori ≥ 590. 19,1% berøringer lige efter aktiveringen. 47,2% af signalerne fra zoner dannet uden for RTH. Uden buffer: 1.844 dage, 91,7%. `research/output/b4_k1_optaelling_v2.md` |
+
+### Edge-testens omfang — besluttet 2026-09-22
+
+**Trin A først:** kernen v2 med BE (ingen / 1,0R / 1,2R) × buffer (10% / 0%) = 6 varianter, faktor 1,50× mod N = 3. Filtersøgningen er et eget, senere trin med egen præregistrering. Før trin A præregistreres, afgøres nulmodellen, fyldningsreglen og om der krydstjekkes mod MNQ-data.
