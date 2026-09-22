@@ -226,10 +226,17 @@ præregistreres:
 1. **Mekanisme før måling.** Hver hypotese skal have et skrevet svar på "hvorfor betaler
    nogen mig for det her?" **før** den kodes. Kan spørgsmålet ikke besvares, testes den ikke.
 2. **Få hypoteser, ikke et sweep.** Tre til fem præregistrerede hypoteser. Ikke en
-   parametersøgning.
-3. **Holdout.** Forslag: **2019-05 til 2023-12 in-sample, 2024-01 og frem urørt** indtil
-   hypotesen er frosset. Det er en beslutning der skal træffes eksplicit — og når den er
-   truffet, må holdout-perioden ikke åbnes "bare lige for at se".
+   parametersøgning. **Undtagelse besluttet 2026-09-22:** kandidat 1 (supply og demand) får
+   en filtersøgning oven på en fast kerne — på betingelse af at hver kombination tælles,
+   at søgningen kun ser in-sample, og at vinderen vurderes med deflateret tærskel og PBO.
+   Se `research/output/b4_hypoteser.md`.
+3. **Holdout. Besluttet 2026-09-22: in-sample 2016-01-01 til 2023-12-31, holdout fra
+   2024-01-01.** In-sample starter samme sted som ATR- og sizing-grundlaget fra fase 1 og
+   dækker 2018, covid-krakket og bjørnemarkedet i 2022. Holdout er 676 handelsdage og åbnes
+   én gang, for en frosset hypotese. **Forseglingen ligger i koden:** `data/holdout.py`
+   åbner aldrig en holdout-fil fra in-sample, og holdout kan kun læses for en committet,
+   uændret hypotesefil. Hver åbning logges i `research/output/holdout_log.md`.
+   `tests/test_holdout.py` fejler hvis B4-kode læser prisdata uden om modulet.
 4. **Tæl hver kørsel.** Antallet af testede varianter rapporteres sammen med resultatet.
    Et p-værdi-agtigt tal uden tælleren er meningsløst.
 
