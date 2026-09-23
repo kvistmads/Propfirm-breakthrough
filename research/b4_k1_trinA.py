@@ -327,7 +327,14 @@ def _git(*args: str) -> subprocess.CompletedProcess:
 
 def regressionstjek() -> bool:
     """§8: det udvidede modul skal gengive ``b4_k1_optaelling_v2.csv`` (commit c18539f)
-    præcist, når det fodres kerne v2 på NQ. Kører k1's egen kerne v2-vej uændret."""
+    præcist, når det fodres kerne v2 på NQ. Kører k1's egen kerne v2-vej uændret.
+
+    Sammenligningen er ``cmp`` på selve csv-teksten, som tillæg 1 §2 foreskriver — IKKE
+    en sammenligning af genindlæste float-værdier: ``read_csv`` og ``astype(str)`` kan
+    formatere samme float64 med ét ciffer forskel i halen uden at tallet er anderledes.
+    """
+    import tempfile
+
     referencen = ROOT / "research" / "output" / "b4_k1_optaelling_v2.csv"
     df = holdout.load_in_sample(k1.SYMBOL)
     dage = k1.rth_dage(holdout.IN_SAMPLE_START, holdout.HOLDOUT_START)
@@ -339,9 +346,11 @@ def regressionstjek() -> bool:
         t.insert(0, "kerne", kerne)
         tabeller.append(t)
     ny = pd.concat(tabeller, ignore_index=True)
-    reference = pd.read_csv(referencen)
-    ens = ny.astype(str).equals(reference.astype(str))
-    return ens
+    with tempfile.TemporaryDirectory() as tmp:
+        sti = Path(tmp) / "ny.csv"
+        ny.to_csv(sti, index=False)
+        return subprocess.run(["cmp", str(sti), str(referencen)],
+                              capture_output=True).returncode == 0
 
 
 def tidsmaaling() -> dict:
