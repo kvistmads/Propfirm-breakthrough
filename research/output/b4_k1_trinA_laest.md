@@ -1,5 +1,20 @@
 # B4 kandidat 1 — trin A, læst
 
+> **RETTET 2026-09-23 efter motorrettelsen** (`research/output/b4_k1_motorrettelse.md`).
+> To af læsningens påstande holdt ikke:
+>
+> | påstand nedenfor | virkelighed efter rettelsen |
+> |---|---|
+> | Fyldningsbarens skævhed er "formentlig lille" | **Stor.** Middel netto-R faldt 0,06-0,13 R. Overblikssessionens forventning var under 0,02 R — den tog fejl med en faktor 3-6 |
+> | Kernen tjener lidt: 0,06-0,09 R | **Kernen taber lidt: −0,00 til −0,05 R** netto i alle 6 varianter |
+> | Retesten holder 59-64% | **50-51%** — et møntkast |
+>
+> Årsagen: i tynde zoner er 2R mindre end et almindeligt 1m-udsving, så fyldningsbarens high lå
+> over målet, *før* ordren blev fyldt. 23-41 handler i varianterne uden BE blev registreret som
+> +2R i stedet for −1R. Trin A's afgørelse står som kørt, men N1 havde samme fejl og er ikke kørt
+> igen. Om den rettede kerne ville have ramt bånd 4 (parkér), er derfor ukendt; trin 2 kører
+> kerne og N1 med den rettede motor og svarer på det.
+
 **Skrevet:** 2026-09-23 af overblikssessionen, **efter** kørslen, sammen med Mads. Det her
 er læsningen, ikke præregistreringen. Tallene står i `b4_k1_trinA.md` og `.csv` (committet
 i 29d34f6, kørt fra 29f3116). Alt nedenfor er regnet fra de filer; intet er kørt igen.
