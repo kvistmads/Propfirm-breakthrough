@@ -7,10 +7,10 @@ efter at jeg ved en fejl så én linje af den. Skrevet **før** R = 500-kørslen
 nulmodelfordeling findes. Kernens middel netto-R er deterministisk og er dermed kendt i
 forvejen; N1, N2 og p_FWE er det ikke. Tillægget skal læses i det lys.
 
-**Commit-tidspunktet beviser ikke rækkefølgen.** Tillægget blev ikke committet af Mads
+**Commit-tidspunktet beviser ikke rækkefølgen.** Tillægget blev ikke committet af ejeren
 som planlagt, men fejet med ind i Code-sessionens commit `29d34f6` kl. 13:57:24 UTC —
 25 sekunder *efter* at R = 500-kørslens rapport lå på disken (13:56:59 UTC). At det er
-skrevet før resultatet (ca. 13:30 UTC), dokumenteres af samtalen mellem Mads og
+skrevet før resultatet (ca. 13:30 UTC), dokumenteres af samtalen mellem ejeren og
 overblikssessionen, ikke af git.
 
 ---

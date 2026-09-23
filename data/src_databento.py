@@ -1,6 +1,6 @@
 """Databento GLBX.MDP3 — primærkilde i fase 1. CME's egen Globex-feed.
 
-Betingelser fra Mads (2026-09-11), håndhævet her:
+Betingelser fra ejeren (2026-09-11), håndhævet her:
 
 1. **Maks $40 af den gratis kredit i fase 1** — hævet fra $25 samme dag, så spread kan
    måles i stedet for at blive skønnet. Prisen estimeres med et gratis metadata-kald

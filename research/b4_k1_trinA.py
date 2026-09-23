@@ -6,7 +6,7 @@ uændret — dette modul lægger handelsmekanikken (§4) oven på den samme zone
 
 **Trin 1 (byg og verificér) kører ikke selve edge-testen.** Se ``main()``:
 ``--regressionstjek`` og ``--tidsmaaling`` er de to ting trin 1 beder om. Trin 2 (6
-varianter × N1 med 500 gentagelser, Westfall-Young) kræver Mads' godkendelse og er ikke
+varianter × N1 med 500 gentagelser, Westfall-Young) kræver ejerens godkendelse og er ikke
 implementeret her.
 
 ## Hvorfor sizing regnes om, §4d — præciseret 2026-09-23
@@ -1223,7 +1223,7 @@ def skriv_trin_a_md(resultat: dict, meta: dict) -> str:
          if b["uafgjort"] else f"Kategori: **{b['kategori']}**.\n"),
         "## Efter kørslen — §10\n",
         "Stop. Ingen ændring af definitioner, ingen forslag til forbedringer. Resultatet "
-        "læses sammen med Mads.\n",
+        "læses sammen med ejeren.\n",
         f"Alle tal, alle varianter × side × år: `{_rel(OUT / 'b4_k1_trinA.csv')}`.\n",
     ]
     return "\n".join(dele)

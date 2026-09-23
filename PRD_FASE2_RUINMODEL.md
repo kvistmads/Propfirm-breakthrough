@@ -342,7 +342,7 @@ barens historiske"**, status **A**, med begrundelsen fra 4.2.
 | Tests grønne | `.venv/bin/python -m pytest tests/ -q` |
 | **Kompakt tabel i chatten** | maks ~15 linjer, enheder i kolonnenavnene, CI med |
 
-Tabellen i chatten er ikke valgfri. Mads er ofte på telefonen og skal kunne læse resultatet
+Tabellen i chatten er ikke valgfri. Ejeren er ofte på telefonen og skal kunne læse resultatet
 uden at åbne en fil. Vis **kun rækkerne for 1 kontrakt ved WR 40%** i chatten — resten hører
 i filen.
 

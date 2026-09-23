@@ -15,7 +15,7 @@
 > igen. Om den rettede kerne ville have ramt bånd 4 (parkér), er derfor ukendt; trin 2 kører
 > kerne og N1 med den rettede motor og svarer på det.
 
-**Skrevet:** 2026-09-23 af overblikssessionen, **efter** kørslen, sammen med Mads. Det her
+**Skrevet:** 2026-09-23 af overblikssessionen, **efter** kørslen, sammen med ejeren. Det her
 er læsningen, ikke præregistreringen. Tallene står i `b4_k1_trinA.md` og `.csv` (committet
 i 29d34f6, kørt fra 29f3116). Alt nedenfor er regnet fra de filer; intet er kørt igen.
 
@@ -66,7 +66,7 @@ noget af sig selv.**
 Den gennemsnitlige omk_R på 0,10 ligger over medianen på 0,07, fordi den tynde hale — mest
 2019 — koster op til 0,3 R pr. handel.
 
-## 4. Mads' forventning: retesten holder 9 ud af 10
+## 4. Ejerens forventning: retesten holder 9 ud af 10
 
 | mål | forventet | målt |
 |---|---|---|
@@ -139,7 +139,7 @@ ikke snævres ind til de filtre dette mønster peger på.
 ## 8. Rettelser til rapporten
 
 - Rapporten siger at `b4_k1_trinA_laesning.md` er skrevet af overblikssessionen. **Det er
-  forkert.** Code-sessionen skrev den selv (bekræftet af Mads); se noten øverst i den fil.
+  forkert.** Code-sessionen skrev den selv (bekræftet af ejeren); se noten øverst i den fil.
 - Rapporten aflæser hul B på CI'ets nedre grænse. Hul B er defineret på punktestimatet.
   Konklusionen bliver den samme gennem §7's CI-klausul.
 - Rapporten mangler "holder"-målet og CI på forskellen mellem demand og supply. Begge er

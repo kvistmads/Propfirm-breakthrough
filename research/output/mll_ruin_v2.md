@@ -12,7 +12,7 @@ Opgave: `PRD_FASE2_RUINMODEL.md`. Valgregel, vinduer og operationalisering af K2
 | Reference A: K3-årene 2016-2026 | 2016-01-04 til 2026-09-10 | 69610 |
 | Reference B: seneste 12 måneder (K5) | 2025-09-11 til 2026-09-10 | 6502 |
 
-**Instrument: NQ, ikke MNQ (antagelse).** Mads besluttede MNQ som primær serie, men MNQ-1m-barer ligger ikke i cachen, og et udtræk ville koste ~$9,46. Valget blev NQ fra 2019-05-06 uden udgift. At ATR i procent er den samme på NQ og MNQ er derfor **ikke målt**. Risikoen kommer fra NQ, spreadet fra MNQ.
+**Instrument: NQ, ikke MNQ (antagelse).** Ejeren besluttede MNQ som primær serie, men MNQ-1m-barer ligger ikke i cachen, og et udtræk ville koste ~$9,46. Valget blev NQ fra 2019-05-06 uden udgift. At ATR i procent er den samme på NQ og MNQ er derfor **ikke målt**. Risikoen kommer fra NQ, spreadet fra MNQ.
 
 ### Omkostning pr. rundtur, 1 MNQ — `backtest.costs.rundtur_dekomponering`
 

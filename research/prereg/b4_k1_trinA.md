@@ -54,7 +54,7 @@ det er de samme varianter på andre data.
 | akse | alternativer | kilde |
 |---|---|---|
 | Break-even | ingen · +1,0R · +1,2R | PRD §3b |
-| Buffer | B = 0,10 × H · B = 0 | Mads mod video 9:50 |
+| Buffer | B = 0,10 × H · B = 0 | Ejeren mod video 9:50 |
 
 6 varianter. Deflationsfaktor mod N = 3: **1,50×** (`research/maks_sharpe.py`).
 
@@ -67,7 +67,7 @@ filterkombinationer der faktisk køres.
 
 ### 4a. De otte fyldningsregler
 
-Aftalt med Mads 2026-09-22. Skrevet ud her, så de kan efterprøves.
+Aftalt med ejeren 2026-09-22. Skrevet ud her, så de kan efterprøves.
 
 | nr | regel | bemærkning |
 |---|---|---|
@@ -78,7 +78,7 @@ Aftalt med Mads 2026-09-22. Skrevet ud her, så de kan efterprøves.
 | 5 | Stoppet fyldes med **0,5417 tick slippage**; målet fyldes som limit uden slippage | Fase 1's målte tal |
 | 6 | **$2,627 pr. rundtur pr. kontrakt** trækkes fra hver handel | Fase 1, RTH. Brutto og netto rapporteres side om side |
 | 7 | **Zonen dør ved berøringen**, også hvis ordren ikke fyldes eller handlen ikke tages | Uændret fra optælling 1 |
-| 8 | **21:30 dansk tid:** alle hvilende ordrer annulleres, nye signaler ignoreres. **21:50:** åbne handler lukkes til markedspris, uanset niveau | Mads, 2026-09-22 |
+| 8 | **21:30 dansk tid:** alle hvilende ordrer annulleres, nye signaler ignoreres. **21:50:** åbne handler lukkes til markedspris, uanset niveau | Ejeren, 2026-09-22 |
 
 ### 4b. Ordrer, positioner og dagens tællere
 
@@ -281,7 +281,7 @@ antagelse (A), ikke en variant.
 
 - **Kernen alene lander på eller lige under N1's median.** Den er uselektiv, og videoens
   påstand ligger i filtrene.
-- **Mads' forventning (2026-09-22): retesten holder ca. 9 ud af 10 gange.** Det svarer til
+- **Ejerens forventning (2026-09-22): retesten holder ca. 9 ud af 10 gange.** Det svarer til
   at +1R nås før stoppet i ~90% af handlerne. Måles som `udfald_maal_pct` plus de handler
   der nåede +1R før stoppet. Det er langt over de 37,9% testen behøver.
 - **BE hjælper ikke i gennemsnit.** BE afskærer halen i begge retninger; den hjælper kun
@@ -292,5 +292,5 @@ antagelse (A), ikke en variant.
 ## 10. Efter kørslen
 
 **Stop.** Tabellen i chatten. Ingen ændring af definitioner, ingen forslag til
-forbedringer — heller ikke gode. Resultatet læses sammen med Mads, og først derefter
+forbedringer — heller ikke gode. Resultatet læses sammen med ejeren, og først derefter
 besluttes trin 2.

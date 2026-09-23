@@ -62,7 +62,7 @@ se `STRATEGI_PROPFIRM.md` §3.
 |---|---|---|
 | Instrument | MNQ | Besluttet, §2 |
 | Kontrakter | **Så mange som kan være inden for $250, rundet ned.** Følger stoppet, se §3c | Besluttet 2026-09-21 |
-| Risiko pr. handel | **Højst $250 = 12,5% af MLL.** Rundes ned, aldrig op | Mads' disciplinregler §3a; afrunding besluttet 2026-09-21 |
+| Risiko pr. handel | **Højst $250 = 12,5% af MLL.** Rundes ned, aldrig op | Ejerens disciplinregler §3a; afrunding besluttet 2026-09-21 |
 | Timeframe | **15m eller lavere** | §5c. 1h og 4h er ude |
 | Gevinst/tab | **2:1-bracket som start.** Tidsexit og trailing kan komme senere | Besluttet 2026-09-19 |
 | Break-even win rate | 33,33% brutto · **33,68% netto med 1 MNQ, 34,03% med 2** | Omkostning $2,627 pr. rundtur pr. kontrakt |
@@ -99,9 +99,9 @@ rigtige tal regnes pr. hypotese og præregistreres (metoderegel 3).
 
 ---
 
-### 3a. Disciplinreglerne — Mads, 2026-09-19
+### 3a. Disciplinreglerne — ejeren, 2026-09-19
 
-Mads' egne regler. De vurderes efter metoderegel 9 (kan de automatiseres, passer de ind,
+Ejerens egne regler. De vurderes efter metoderegel 9 (kan de automatiseres, passer de ind,
 hvor omfattende er ændringen), ikke videnskabeligt. Ordret:
 
 > "You're going to buy a 50K account. You're going to risk 250 per trade. […] If you take
@@ -130,7 +130,7 @@ $500 ved $5.000 og videre. Hører til spor B (B7), ikke til denne fase.
 
 Et selvstændigt punkt: hvad der sker med en åben handel.
 
-**Break-even.** Mads' regel: når prisen har tilbagelagt 60% af vejen til TP, flyttes stoppet
+**Break-even.** Ejerens regel: når prisen har tilbagelagt 60% af vejen til TP, flyttes stoppet
 til indgangen. Ved 2:1 er det +1,2R.
 
 **Det testes om BE overhovedet hjælper**, som tre varianter der alle tæller med i tælleren:
@@ -387,7 +387,7 @@ uærligt.**
 
 ## 7. Parkerede kandidater
 
-**Asiatisk og europæisk session som kontekst for US-sessionen.** Mads' observation; parkeret
+**Asiatisk og europæisk session som kontekst for US-sessionen.** Ejerens observation; parkeret
 2026-09-13 som B4-kandidat. Status efter gennemgang:
 
 - **Målbart og sandt:** volatiliteten er stærkt sessionsafhængig. Vi har målt det selv —
@@ -400,7 +400,7 @@ uærligt.**
 - **Testbar formulering:** *bærer den asiatiske sessions range information om US-sessionen ud
   over hvad gårsdagens US-luk og realiseret volatilitet allerede fortæller?*
 
-**Andre indeksfutures (ES, YM, RTY og deres mikroer).** Mads vil gerne se om vi går glip af
+**Andre indeksfutures (ES, YM, RTY og deres mikroer).** Ejeren vil gerne se om vi går glip af
 noget. To forbehold, begge skal håndteres før det køres:
 
 1. **Det ganger multiple-comparison-problemet med fire.** Testes en hypotese på fire
@@ -477,7 +477,7 @@ kompakt tabel i chatten ved hvert resultat · aldrig nøgleværdier i chatten.
 
 **Ikke kode. En samtale.**
 
-Mads vil have en lang drøftelse af hypoteserne før noget skrives. Start der: hvilke
+Ejeren vil have en lang drøftelse af hypoteserne før noget skrives. Start der: hvilke
 kandidater har han selv, hvad er mekanismen bag hver enkelt, og hvilke overlever
 kravspecifikationen i §3.
 

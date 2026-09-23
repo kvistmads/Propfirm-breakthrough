@@ -1,6 +1,6 @@
 """Forseglet holdout for B4 — in-sample 2016-01-01 til 2023-12-31, holdout fra 2024-01-01.
 
-Besluttet 2026-09-22 (Mads): in-sample starter 2016-01-01, samme grundlag som ATR- og
+Besluttet 2026-09-22 (ejeren): in-sample starter 2016-01-01, samme grundlag som ATR- og
 sizing-tallene i fase 1. Holdout er alt fra 2024-01-01 og frem, og det åbnes **én gang**,
 for en frosset hypotese.
 

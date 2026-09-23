@@ -1,6 +1,6 @@
 # Daytrading-sporet — hvad vi ved, hvad vi har afvist, og hvad der mangler
 
-**Status:** Aktivt spor. Målet er en bot der handler mens Mads er på arbejde, slår
+**Status:** Aktivt spor. Målet er en bot der handler mens ejeren er på arbejde, slår
 buy-and-hold over tid, og kan bestå en prop-firma-evaluering.
 **Skrevet:** 2026-09-04
 **Søsterdokument:** `STRATEGI_TSMOM.md` (udskilt til separat notifikationsprojekt)
@@ -299,7 +299,7 @@ lavfrekvent strategi.
 
 ---
 
-## 8. To strategier til prop-konti — den plan Mads har skitseret
+## 8. To strategier til prop-konti — den plan ejeren har skitseret
 
 **Én til at bestå evalueringen.** Opgaven er "nå +10% før du rammer −10% inden for
 reglerne". Det er et defineret spil med defineret risiko — en anden opgave end at

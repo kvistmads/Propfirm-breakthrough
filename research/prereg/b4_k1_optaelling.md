@@ -2,7 +2,7 @@
 
 **Skrevet:** 2026-09-22, før kørslen. Committes før kørslen (metoderegel 13).
 **Grundlag:** `research/output/b4_hypoteser.md`, kandidat 1, kernen. Beslutningsreglen er
-godkendt af Mads 2026-09-22.
+godkendt af ejeren 2026-09-22.
 
 ---
 
@@ -74,7 +74,7 @@ Og én tabel pr. år, 2016-2023: `dage_med_signal_pct` med CI, så stabiliteten 
 
 ## 5. Beslutningsregel
 
-Godkendt af Mads 2026-09-22 som andele af dagene, regnet på 1.173 dage (vinduet fra
+Godkendt af ejeren 2026-09-22 som andele af dagene, regnet på 1.173 dage (vinduet fra
 2019). Med in-sample fra 2016 er der 2.012 dage, så reglen står her i **antal dage med
 signal** — det er det tal MDE hviler på. Logikken er uændret: 390 handler skal til for at
 skelne 40% fra 33,97% win rate (α 0,05 ensidet, 80% styrke), og 590 giver plads til en
@@ -99,4 +99,4 @@ strammere end ment, og det læses sammen før noget ændres.
 ## 7. Efter kørslen
 
 Stop. Tabellen i chatten, ingen ændring af definitioner, ingen forslag. Resultatet læses
-sammen med Mads.
+sammen med ejeren.

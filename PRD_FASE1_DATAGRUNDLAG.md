@@ -157,7 +157,7 @@ Opgaven her er kun at afgøre spørgsmålet:
 | Konklusion på spread | `research/output/datakilder.md` |
 | **Kompakt tabel i chatten** | maks ~15 linjer, brutto og netto side om side, enheder i kolonnenavnene |
 
-Tabellen i chatten er ikke valgfri. Mads er ofte på telefonen og skal kunne læse resultatet
+Tabellen i chatten er ikke valgfri. Ejeren er ofte på telefonen og skal kunne læse resultatet
 uden at åbne en fil.
 
 ---

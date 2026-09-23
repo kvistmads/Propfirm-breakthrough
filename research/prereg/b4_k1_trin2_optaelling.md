@@ -3,7 +3,7 @@
 **Skrevet:** 2026-09-23 af overblikssessionen, før kørslen. Committes før kørslen.
 **Grundlag:** `research/kilder/photon_sd_video_noter.md` (videoens otte kriterier),
 `research/output/b4_k1_trinA_laest.md` og `research/output/b4_k1_motorrettelse.md`.
-Definitionerne i §3 er aftalt med Mads 2026-09-23.
+Definitionerne i §3 er aftalt med ejeren 2026-09-23.
 
 **Kørslen ser ikke på udfald.** Den tæller signaler, filterværdier og scorer. Ingen handel
 simuleres, intet R regnes, og intet lægges til tælleren. N står på 6.
@@ -24,14 +24,14 @@ Det tælles her, før et eneste udfald er set.
 | spor | handelstimeframe | højere timeframe | hvorfor |
 |---|---|---|---|
 | **A** | 15m | 1h | Vennens timeframe. Det trin A testede |
-| **B** | 5m | 15m | Videoens eget eksempel (14:55: M5 med M15 som højere). Mads, 2026-09-23 |
+| **B** | 5m | 15m | Videoens eget eksempel (14:55: M5 med M15 som højere). Ejeren, 2026-09-23 |
 
-Fælles for begge: kerne v2, buffer 10%, BE +1,2R (fast, én version — Mads 2026-09-23),
+Fælles for begge: kerne v2, buffer 10%, BE +1,2R (fast, én version — ejeren 2026-09-23),
 MNQ.v.0 2019-05-06 → 2023-12-31 kun gennem `data.holdout.load_in_sample`, indgangsvindue
 15:30-21:30 dansk tid, en handel kræver `kontrakter ≥ 1`, kontrakter loftes ved 50.
 
 **Om spor B går videre til trin 2, besluttes efter denne optælling, på de udfaldsfri tal i
-§5, sammen med Mads og før trin 2 præregistreres.** Grunden: omkostningen i R er omvendt
+§5, sammen med ejeren og før trin 2 præregistreres.** Grunden: omkostningen i R er omvendt
 proportional med stopafstanden, og 5m-zoner er mindre.
 
 ## 3. Definitionerne
@@ -97,7 +97,7 @@ samme som trin A-motorens kandidater for buffer 10%.
 | En tærskel score ≥ k er testbar | `dage_med_signal_n` ved score ≥ k er mindst 310 (MDE 0,20 R) |
 | Varianter i trin 2 | "brud alene" og de testbare af score ≥ 2, ≥ 3, ≥ 4. Er ingen tærskel testbar, køres kun hovedtesten |
 | Hovedtesten | køres altid; den bruger alle signaler |
-| Spor B | besluttes sammen med Mads på omkostningstabellen. Hvert spor der går videre, lægger sine varianter til N |
+| Spor B | besluttes sammen med ejeren på omkostningstabellen. Hvert spor der går videre, lægger sine varianter til N |
 
 ## 6. Forventning, skrevet før kørslen — ikke et kriterium
 
@@ -111,4 +111,4 @@ samme som trin A-motorens kandidater for buffer 10%.
 ## 7. Efter kørslen
 
 Stop. Tabellerne i chatten. Ingen ændring af definitionerne, ingen valg af tærskler —
-det gøres sammen med Mads efter §5.
+det gøres sammen med ejeren efter §5.

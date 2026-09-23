@@ -135,13 +135,13 @@ besked blandede dem: tabellen brugte 13,49, svaret på spørgsmål 2 brugte 13,7
 
 ### 3.4 Arbejdsregler der kun lå uden for repoet
 
-Mads' regler fra 2026-09-11, som hidtil kun stod i Claudes hukommelse:
+Ejerens regler fra 2026-09-11, som hidtil kun stod i Claudes hukommelse:
 
 - Én branch pr. fase. Commit undervejs i logiske commits. Overbliksfiler committes for sig.
 - Push til fasebranchen. Rør ikke `main`, merge ikke, opret ikke PR.
 - `git --no-optional-locks` på alle git-kald.
 - `git push` fra Claude Codes shell fejler ("could not read Username for 'https://github.com'"),
-  også uden sandbox. Mads pusher selv.
+  også uden sandbox. Ejeren pusher selv.
 
 Databento-betingelserne og RTH-mod-døgn-reglen står allerede i `datakilder.md` §2 og
 `ANTAGELSER.md` §2.

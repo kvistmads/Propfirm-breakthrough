@@ -51,7 +51,7 @@ effective filter" (12:40).
 
 Kernen bruger metode 1 og 2R.
 
-## Mads' billede "LIQUIDATION REVERSAL", målt 2026-09-23
+## Ejerens billede "LIQUIDATION REVERSAL", målt 2026-09-23
 
 Målt på pixels i skærmbilledet (806 × 590): den gamle demand-zone har top ved y = 400 og bund
 ved y = 470. Den lange væge når y = 406, altså **ca. 9% af zonehøjden ind i zonen.** Over zonen

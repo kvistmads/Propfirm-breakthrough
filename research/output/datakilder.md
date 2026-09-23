@@ -93,7 +93,7 @@ rækker 60 dage på 15m — samme cap som §5's 0,168% blev målt under.
 
 ## 2. Valg
 
-**Databento**, besluttet af Mads 2026-09-11, med disse betingelser:
+**Databento**, besluttet af ejeren 2026-09-11, med disse betingelser:
 
 1. Budget for fase 1: $40 af kreditten (hævet fra $25, så spread kan måles). Prisestimat før hvert udtræk.
 2. Kun 1m OHLCV. 3m/5m/15m aggregeres, så alle timeframes deler bar-grænser.
@@ -319,7 +319,7 @@ spread-leddet skifter. R ved målt 15m RTH-ATR 2016-2026 og §5's NQ-niveau:
 
 ### Krydstjek: sammenhængende 182 døgn, bbo-1m
 
-Første udtræk, før Mads bad om en stikprøve: MNQ.v.0 bbo-1m 2026-03-13 → 2026-09-10, ét snapshot
+Første udtræk, før ejeren bad om en stikprøve: MNQ.v.0 bbo-1m 2026-03-13 → 2026-09-10, ét snapshot
 pr. minut (ved minutgrænsen), 179.155 snapshots, 953 låste/krydsede udeladt.
 
 | session | n | gns_ticks | p10_ticks | p50_ticks | p90_ticks | andel_1_tick_pct |

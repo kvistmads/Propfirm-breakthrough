@@ -23,7 +23,7 @@ Kandidat 2 og frem mangler.
 
 ## Kandidat 1 — supply og demand
 
-**Kilde:** Mads. Videoen "Master Institutional Supply and Demand Trading" (Matt Donlevey,
+**Kilde:** Ejeren. Videoen "Master Institutional Supply and Demand Trading" (Matt Donlevey,
 Photon Trading, https://www.youtube.com/watch?v=-RTpm9ZNV-M) og en ven der handler strategien
 manuelt og profitabelt, blandt andet på NQ, hovedsageligt på 15m. Vennen kan ikke levere
 skærmbilleder.
@@ -54,10 +54,10 @@ spejlvendt.
 |---|---|---|
 | Timeframe | 15m | vennen |
 | **1. Udbrud** | Basislyset er lyset lige før udbrudslyset. Basislyset er rødt (close < open), og udbrudslyset lukker **over** basislysets high. Zonen går fra basislysets high til low, **væger medregnet**. Højden H = high − low. Zonen findes fra udbrudslysets lukning | video 8:47 |
-| Buffer | B = 10% af H. Indgangsniveauet er E = high + B | Mads, 2026-09-22 |
-| **2. Prisen forlader zonen** | Zonen bliver **aktiv** ved det første lys, fra og med udbrudslyset, hvis low ligger over E. Indtil da tæller berøringer ikke. **Lukker et lys under zonens low før aktivering, er zonen ugyldig** | video 7:31; Mads, 2026-09-22 |
+| Buffer | B = 10% af H. Indgangsniveauet er E = high + B | Ejeren, 2026-09-22 |
+| **2. Prisen forlader zonen** | Zonen bliver **aktiv** ved det første lys, fra og med udbrudslyset, hvis low ligger over E. Indtil da tæller berøringer ikke. **Lukker et lys under zonens low før aktivering, er zonen ugyldig** | video 7:31; ejeren, 2026-09-22 |
 | **3. Retest** | Første lys efter aktiveringen hvis low ≤ E. Det er berøringen. Zonen dør ved den, uanset tidspunkt | video 15:55 |
-| Indgang | Limitordre på E. Fyldes ved berøringen | video 9:50, med Mads' buffer |
+| Indgang | Limitordre på E. Fyldes ved berøringen | video 9:50, med ejerens buffer |
 | Stop | Zonens low | video 9:50 |
 | Risiko | E − low = 1,1 × H | — |
 | Mål | 2R fra E. Videoen bruger fast R med 3R som eksempel; 2R er vores beslutning | video 16:57, PRD §3 |
@@ -73,9 +73,9 @@ spejlvendt.
 | v1, 2026-09-22 (commit 11d68f2) | Første berøring efter udbrudslyset er signalet. Ingen buffer | Optællingen viste at **55,4% af signalerne var berøringer i lyset lige efter udbruddet** — prisen havde ikke forladt zonen. Det er ikke videoens retest. Ændret før noget udfald er set |
 | v2, 2026-09-22 | Trin 2 (zonen skal forlades, ugyldig ved lukning igennem) og bufferen på 10% | — |
 
-### Mads' forventning, skrevet før edge-testen
+### Ejerens forventning, skrevet før edge-testen
 
-**Retesten holder cirka 9 ud af 10 gange**, hvis zonerne er sat rigtigt (Mads, 2026-09-22).
+**Retesten holder cirka 9 ud af 10 gange**, hvis zonerne er sat rigtigt (ejeren, 2026-09-22).
 Edge-testen måler to ting, så forventningen kan efterprøves:
 
 - **holder:** prisen når +1R fra E, før stoppet rammes
@@ -98,7 +98,7 @@ Hver variant tæller med i N for den deflaterede tærskel.
 | Filter 6: retning på højere timeframe | til / fra | 15:13 |
 | Filter 7: demand i nederste halvdel, supply i øverste | til / fra | 15:35 |
 | Stop | på kanten / med afstand | 9:50 mod 16:57 |
-| Buffer | 10% / 0% (videoens kant) | Mads mod 9:50 |
+| Buffer | 10% / 0% (videoens kant) | Ejeren mod 9:50 |
 | Zonetype | pivot / range | 8:47 |
 | Basislysets farve | streng / enhver farve | 9:19 |
 | BE | ingen / 1,0R / 1,2R | PRD §3b |
@@ -134,7 +134,7 @@ edge-testen præregistreres — tallet der rapporteres er det faktiske N, ikke d
 | afstemning | Efter hver ordrehændelse læses position og åbne ordrer fra brokeren og holdes op mod bottens egen. Afvigelse → ingen nye ordrer, alarm |
 | risiko | Disciplinreglerne i PRD §3a. BE efter varianten der vinder |
 | genopretning | Zoner kan genberegnes fra prisdata. Det eneste der skal gemmes er hvilke zoner der er brugt og dagens tællere. Ved genstart læses det fra disk og afstemmes mod brokeren |
-| logning | Hver zone (dannet, berørt, død), hver ordre, og en journal pr. dag — Mads' regel |
+| logning | Hver zone (dannet, berørt, død), hver ordre, og en journal pr. dag — ejerens regel |
 
 ### Signaloptællinger
 
@@ -156,8 +156,8 @@ Optællingerne ser ikke på udfald og lægger intet til tælleren.
 | emne | beslutning |
 |---|---|
 | Hvad testes | Videoens egen påstand: jo flere kriterier, jo bedre (16:00). Score 0-7 pr. zone. Hovedtest: stiger middel netto-R med scoren? Varianter: brud på struktur alene og tærskler på scoren, fastlagt efter optællingen |
-| BE | +1,2R, fast, én version. Mads' 60%-regel |
-| Buffer | 10%, fast, én version. Mads' regel |
+| BE | +1,2R, fast, én version. Ejerens 60%-regel |
+| Buffer | 10%, fast, én version. Ejerens regel |
 | Spor | A: 15m med 1h. B: 5m med 15m (videoens eksempel). B går kun videre hvis omkostningerne tillader det, besluttet på udfaldsfri tal |
 | Definitioner | `research/prereg/b4_k1_trin2_optaelling.md` §3 |
 | **Stopregel** | **Stiger middel netto-R ikke med scoren, parkeres kandidat 1, og kandidat 2 findes.** Ingen redningsforsøg |

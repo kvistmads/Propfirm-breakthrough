@@ -46,7 +46,7 @@ rullerne i december 2025, marts 2026 og juni 2026.
 
 ## Tilføjet efter første kørsel — rapportering, ikke metode
 
-Tilføjet 2026-09-11 efter Mads' instruks, efter at K3 viste huller i 2010-2015. Metoden
+Tilføjet 2026-09-11 efter ejerens instruks, efter at K3 viste huller i 2010-2015. Metoden
 ovenfor er uændret; kun rapporteringen er udvidet:
 
 - Helhistorik-tabellen står uændret. Ved siden af står samme tabel for de år der består

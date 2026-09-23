@@ -6,7 +6,7 @@ fordelingen i stedet for et punktestimat, og alle Topstep-regler er verificeret 
 primærkilden. **A1-A7, B1-B3 og B6 er besvaret.**
 
 **Sizing var afgjort som et bånd: 6,4-7,1% af MLL ved p90 med 1 MNQ** (§5). **Genåbnet
-2026-09-19** af Mads' disciplinregler — $250 pr. handel, højst én afgjort handel om dagen.
+2026-09-19** af ejerens disciplinregler — $250 pr. handel, højst én afgjort handel om dagen.
 Timeframen afgøres i B4 på edge-grunde.
 
 **Næste fase er B4 — edge-hypotesen.** Det er projektets egentlige opgave, og alt hidtil
@@ -42,7 +42,7 @@ Hvor vi står, og hvad der mangler. **Kørte faser er faktuelle; kommende faser 
 - **Omkostning:** $2,627 pr. rundtur i RTH, dekomponeret og verificeret. Kun slippage er
   stadig et skøn.
 - **Sizing:** risikobåndet **6,4-7,1% af MLL ved p90** med 1 MNQ. Ikke én celle — tre
-  timeframes rammer båndet og er uadskillelige. **Genåbnet 2026-09-19:** Mads'
+  timeframes rammer båndet og er uadskillelige. **Genåbnet 2026-09-19:** Ejerens
   disciplinregler sætter risikoen til $250 pr. handel og højst én afgjort handel om dagen.
   Se `PRD_FASE3_B4_EDGE.md` §3a-3c.
 - **Timeframe-vindue:** 15m og nedad. 1h og 4h er ude.
@@ -109,7 +109,7 @@ væsentlige forskel, og den har konsekvenser helt ned i valget af timeframe (§5
 
 ### Afgrænsning
 
-- **Nyt repo.** Begrundelsen er Mads' egen: "knald eller fald, en forkert fejl på det
+- **Nyt repo.** Begrundelsen er ejerens egen: "knald eller fald, en forkert fejl på det
   forkerte tidspunkt, konto død."
 - **Apparatet kopieres, deles ikke.** Gennemført — se §6.
 - **De 5-10K egen kapital er ikke en del af dette spor.**
@@ -239,7 +239,7 @@ skal ligge i koden.**
 > flade konti kl. **15:08 CT**. Handel genoptages kl. **17:00 CT**.
 > "Topstep is a day trading program" — swingpositioner findes ikke.
 
-**Handelsdagen i dansk tid — referencetabellen.** Godkendt af Mads 2026-09-21. Dansk tid står
+**Handelsdagen i dansk tid — referencetabellen.** Godkendt af ejeren 2026-09-21. Dansk tid står
 først; New York-tid er børsens egen tid; Chicago-tid (CT) er den Topstep, CME og koden regner i,
 og den ligger altid en time efter New York.
 
@@ -596,10 +596,10 @@ Disse er ikke stilpræferencer. Hver enkelt er skrevet efter at være gået galt
 
 | regel | hvorfor |
 |---|---|
-| **Kommandoblokke uden `#`-kommentarer** | Mads' zsh fejler på dem. Forklaringen står i teksten over blokken, ikke inde i den |
+| **Kommandoblokke uden `#`-kommentarer** | Ejerens zsh fejler på dem. Forklaringen står i teksten over blokken, ikke inde i den |
 | **`git --no-optional-locks` på alle git-kald** | Uden det efterlades lockfiler der blokerer GitHub Desktop. Kørt to gange, kostede fejlsøgning begge gange |
 | **`git add` køres ikke af en Cowork-session** | `--no-optional-locks` dæmper kun den opportunistiske lås fra læsekommandoer som `status`. `git add` tager den rigtige lås uanset |
-| **Kompakt tabel i chatten ved hvert resultat** | Mads er ofte på telefonen og skal kunne læse resultatet uden at åbne en fil |
+| **Kompakt tabel i chatten ved hvert resultat** | Ejeren er ofte på telefonen og skal kunne læse resultatet uden at åbne en fil |
 | **Aldrig API-nøgleværdier i chatten** | En nøgle er allerede lækket i et skærmbillede og måtte roteres. Verificér kun maskeret: `sed 's/\(=db-....\).*/\1…/' .env` |
 | **`.env` i `.gitignore`, aldrig committet** | Verifikation: `grep -c "^\.env$" .gitignore` → mindst 1, og `git --no-optional-locks status --porcelain=v1 \| grep -c "env"` → 0 |
 | **Nøgler roteres aldrig midt i en kørsel** | Gjort én gang. Gav 401 og dræbte et MNQ-udtræk halvvejs |
@@ -725,7 +725,7 @@ Vi bygger ikke fordi det føles som næste skridt. Vi er klar når **alle fem** 
 
 ## 12. Åbne observationer fra det eksisterende projekt
 
-- **Break-even-stop og trailing stop fungerer muligvis ikke som håbet.** Mads' observation
+- **Break-even-stop og trailing stop fungerer muligvis ikke som håbet.** Ejerens observation
   fra live paper-handler. Ikke målt. Kandidat til en falsifikationstest.
 - **Prisen rammer ofte lige akkurat ikke TP**, hvorefter den går mod SL eller lukkes af
   tidsstop. Det var begrundelsen for `tp_rr_ratio` 1,5 i det gamle projekt — og præcis
@@ -750,7 +750,7 @@ Ting der ikke stod nogen steder. De to første kan bide.
 - **Miljøet er ikke låst.** `.venv` kører Python 3.14.4 med pandas 3.0.5, numpy 2.5.3,
   pyarrow 25.0.1, databento 0.86.0, exchange_calendars 4.13.2. **Ingen scipy.**
   `requirements.txt` siger stadig 3.12. Macen har hverken brew, uv, pyenv eller gh — derfor
-  kan ingen session pushe selv; det gør Mads i GitHub Desktop.
+  kan ingen session pushe selv; det gør ejeren i GitHub Desktop.
 - **To NQ-niveauer i omløb.** 29.639,50 (2026-09-07) og 29.138 (seriens sidste luk) giver
   13,72% mod 13,49% for samme ATR på 15m RTH p90. **Dette dokument bruger 29.138
   gennemgående.** Fase 2 holder op med at hardkode prisen og læser den fra sidste bar.

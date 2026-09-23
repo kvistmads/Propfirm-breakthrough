@@ -119,6 +119,6 @@ To dokumenter dukkede op på disken mens den rigtige kørsel kørte: `research/p
 
 ## Efter kørslen — §10
 
-Stop. Ingen ændring af definitioner, ingen forslag til forbedringer. Resultatet læses sammen med Mads.
+Stop. Ingen ændring af definitioner, ingen forslag til forbedringer. Resultatet læses sammen med ejeren.
 
 Alle tal, alle varianter × side × år: `research/output/b4_k1_trinA.csv`.

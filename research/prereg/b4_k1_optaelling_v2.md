@@ -1,7 +1,7 @@
 # B4 kandidat 1 — præregistrering: signaloptælling, kerne v2
 
 **Skrevet:** 2026-09-22, før kørslen. Committes før kørslen (metoderegel 13).
-**Grundlag:** kernen v2 i `research/output/b4_hypoteser.md`, besluttet af Mads 2026-09-22.
+**Grundlag:** kernen v2 i `research/output/b4_hypoteser.md`, besluttet af ejeren 2026-09-22.
 **Bygger på:** `research/prereg/b4_k1_optaelling.md` (11d68f2) og tillægget
 `b4_k1_optaelling_tillaeg.md` (50a060e). **Alt derfra gælder, medmindre det er ændret her.**
 
@@ -94,4 +94,4 @@ aktiveringen forventes at være langt under v1's 55,4%.
 ## 8. Efter kørslen
 
 Stop. Tabellen i chatten, ingen ændring af definitioner, ingen forslag. Resultatet læses
-sammen med Mads.
+sammen med ejeren.

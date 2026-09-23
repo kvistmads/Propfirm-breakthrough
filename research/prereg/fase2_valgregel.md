@@ -1,7 +1,7 @@
 # Fase 2 — præregistrering: valgregel, vinduer og operationalisering af K2-K5
 
 **Skrevet:** 2026-09-13, før gitteret er kørt. Committet før kørslen (metoderegel 13).
-**Grundlag:** `PRD_FASE2_RUINMODEL.md` §3 (K1-K5) og Mads' svar i fasesessionen
+**Grundlag:** `PRD_FASE2_RUINMODEL.md` §3 (K1-K5) og ejerens svar i fasesessionen
 2026-09-13 på de punkter PRD'en ikke fastlagde. Hvor en regel nedenfor er fasesessionens
 egen præcisering af et svar, står det.
 
@@ -26,8 +26,8 @@ Intet i gitteret er set, da dette blev skrevet. Kendt på forhånd fra fase 1's 
 - 3m/5m/15m aggregeres fra 1m som i fase 1. ATR (Wilder 14, brudhåndtering) regnes på hele
   RTH-serien før vinduet skæres, så opvarmningen aldrig starter forfra. Barer med ATR ≤ 0
   eller NaN udelades, som i `atr_fordeling.fordeling`.
-- **Instrument.** Mads besluttede 2026-09-13 at primærvinduet skulle ligge på MNQ. MNQ-1m-barer
-  ligger ikke i cachen, og et udtræk ville koste ~$9,46. Mads valgte ingen udgift: **NQ fra
+- **Instrument.** Ejeren besluttede 2026-09-13 at primærvinduet skulle ligge på MNQ. MNQ-1m-barer
+  ligger ikke i cachen, og et udtræk ville koste ~$9,46. Ejeren valgte ingen udgift: **NQ fra
   2019-05-06**. Instrumenttjekket NQ mod MNQ udgår, og "ATR i procent er den samme på NQ og
   MNQ" står i rapporten som antagelse (A). Risikoen kommer dermed fra NQ og spreadet fra MNQ.
 - **NQ-niveau:** sidste RTH-luk i serien, læst fra data (29.138,00, 2026-09-10 15:59 ET). Ét
@@ -41,7 +41,7 @@ Intet i gitteret er set, da dette blev skrevet. Kendt på forhånd fra fase 1's 
   20260909 i **alle** celler.
 - R trækkes pr. handel fra cellens empiriske ATR-fordeling (med tilbagelægning), ved det faste
   NQ-niveau.
-- **Parring** (Mads: parrede stier, samme seed, samme uniforme træk, tærsklet ved hver celles
+- **Parring** (ejeren: parrede stier, samme seed, samme uniforme træk, tærsklet ved hver celles
   WR). Vinder/taber-uniformen og antal handler pr. dag trækkes i hver slot uanset stiens
   tilstand. ATR trækkes som kvantil *u* af cellens sorterede fordeling, med samme *u* i alle
   celler. Sti *i* ser dermed samme tilfældighed i hver celle; kun tærsklerne er forskellige.
@@ -142,7 +142,7 @@ nogen af de tre mellem slippage 0,5417 og 1,0, er **C4 blokerende**. Skifter nog
 **Skrevet før tillægskørslen og committet før den.** Fasen er ikke genåbnet; cellen er ikke
 låst. Anledning: `REGLER_VERIFICERET.md` §3 (verificeret 2026-09-13) viser at konsistensreglen
 er **55%**, ikke 50%. Modellen har været strengere end virkeligheden i v1 og v2. Grundlag:
-Mads' instruks og svar i fasesessionen 2026-09-13. Hvor noget er fasesessionens præcisering,
+Ejerens instruks og svar i fasesessionen 2026-09-13. Hvor noget er fasesessionens præcisering,
 står det.
 
 **Afsnit 1-8 ovenfor gælder uændret**, bortset fra det dette tillæg erstatter: v2's

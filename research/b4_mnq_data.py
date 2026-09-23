@@ -4,7 +4,7 @@ Trin 1, gratis: prisestimat.
 
     .venv/bin/python -m research.b4_mnq_data
 
-Trin 2, kun efter Mads' godkendelse: udfør udtrækket.
+Trin 2, kun efter ejerens godkendelse: udfør udtrækket.
 
     .venv/bin/python -m research.b4_mnq_data --hent
 
