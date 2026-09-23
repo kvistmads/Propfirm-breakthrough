@@ -963,3 +963,52 @@ def test_fuld_rapportlag_koerer_uden_fejl_paa_et_lille_ægte_gennemloeb():
          "n_1m": 1000, "n_15m": 100})
     assert "# B4 kandidat 1" in md
     assert wy["bedste_variant"][0] in md
+
+
+def test_motorrettelse_maaling_og_rapport_koerer_uden_fejl():
+    from data import resample
+
+    DAG = "2023-06-14"
+    BASIS_D = (10_010, 10_015, 9_995, 10_000)
+    UDBRUD_D = (10_000, 10_030, 9_998, 10_020)
+    OVER = (10_022, 10_025, 10_020, 10_022)
+    GENNEM = (10_005, 10_006, 9_990, 9_991)
+
+    def _sti(lys15):
+        rows = []
+        for o, h, l, c in lys15:
+            path = np.linspace(o, c, 15)
+            for i, p in enumerate(path):
+                rows.append((p, h if i == 5 else p, l if i == 10 else p, p))
+        return rows
+
+    df_1m = _1m(_sti([BASIS_D, UDBRUD_D, OVER, GENNEM] + [OVER] * 200),
+               start_ct=f"{DAG} 09:00")
+    bars15 = resample.aggregate(df_1m, 15)
+
+    foer = t.simuler_alle_varianter(df_1m, bars15, ret_fyldningsbar=False)
+    efter = t.simuler_alle_varianter(df_1m, bars15, ret_fyldningsbar=True)
+    rows = []
+    for v in efter:
+        h_foer, h_efter = foer[v]["handler"], efter[v]["handler"]
+        nf, ne = t.noegletal_handler(foer[v]), t.noegletal_handler(efter[v])
+        rows.append({
+            "buffer": v[0], "BE": v[1],
+            "handler_n_foer": len(h_foer), "handler_n_efter": len(h_efter),
+            "handler_kun_i_foer_n": 0, "handler_kun_i_efter_n": 0,
+            "middel_R_netto_foer": nf["middel_R_netto"],
+            "middel_R_netto_efter": ne["middel_R_netto"],
+            "forskel": ne["middel_R_netto"] - nf["middel_R_netto"],
+            "handler_ramt_af_rettelse_1_n": 0,
+            "holder_pct": ne["holder_pct"], "holder_ci95_lo_pct": ne["holder_ci95_lo_pct"],
+            "holder_ci95_hi_pct": ne["holder_ci95_hi_pct"],
+        })
+    maaling = {"tabel": pd.DataFrame(rows), "foer": foer, "efter": efter,
+              "n_1m": len(df_1m), "n_15m": len(bars15)}
+    md = t.skriv_motorrettelse_md(
+        maaling, {"koert_utc": "x", "head": "f" * 40,
+                 "commits": {t._rel(t.PREREG_MOTOR): "f" * 40,
+                            t._rel(Path(t.__file__)): "f" * 40},
+                 "n_1m": len(df_1m), "n_15m": len(bars15)})
+    assert "# B4 kandidat 1 — motorrettelse" in md
+    assert "handler_ramt_af_rettelse_1_n" in md

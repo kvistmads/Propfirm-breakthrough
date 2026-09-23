@@ -1303,6 +1303,7 @@ def main(argv: list[str] | None = None) -> None:
             "koert_utc": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M"),
             "head": _git("rev-parse", "HEAD").stdout.strip(),
             "commits": commits,
+            "n_1m": maaling["n_1m"], "n_15m": maaling["n_15m"],
         }
         md = skriv_motorrettelse_md(maaling, meta)
         OUT.mkdir(parents=True, exist_ok=True)
