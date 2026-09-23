@@ -115,12 +115,47 @@ maskineri. **Det er en rapporteret diagnose, ikke en variant, og den indgår ikk
 beslutningsreglen i §7.** Bruges tallet senere til at ændre fyldningsreglen, tæller den
 ændring som en variant og lægges til N.
 
-### 4d. Sizing, uændret fra PRD §3c
+### 4d. Sizing og stoploft — præciseret 2026-09-23, før kørslen
 
 `kontrakter = floor(250 / (risiko_pt × 2))`, rundet ned. Risiko = E − low = 1,1 × H med
-buffer, H uden. Stoploft: risiko ≤ 0,429% af prisen. Zoner over loftet handles ikke.
-R regnes pr. handel i enheder af den handels egen dollarrisiko, så varierende
-kontraktantal ikke forvrider gennemsnittet.
+buffer, H uden. **Risiko regnes i zonens egne, rigtige point** — ikke omregnet gennem
+fase 2's faste referencepris (NQ 29.138). R regnes pr. handel i enheder af den handels
+egen dollarrisiko, så varierende kontraktantal ikke forvrider gennemsnittet.
+
+**Stoploftet er dollarloftet, ikke en procent af prisen.** PRD §3c siger det ligeud:
+"Handler hvor ét MNQ alene ville risikere mere end $250, tages ikke." Det er
+`risiko_pt ≤ 125`, og det håndhæves allerede af formlen ovenfor: over 125 point giver
+`floor` nul kontrakter. **En handel tages hvis og kun hvis `kontrakter ≥ 1`.**
+
+**Reglen "risiko ≤ 0,429% af prisen" bruges ikke i handelsmodulet.** De to regler er kun
+det samme tal ved NQ 29.138. Optællingsmodulet regnede risikoen i normerede point ved
+netop den referencepris, så dér faldt de sammen og var korrekte. Lægges procentreglen
+derimod på de rigtige historiske priser, bliver den noget helt andet: et **relativt
+breddefilter**, der afviser zoner over 0,39% af prisen uanset hvad de koster i dollar.
+Det filter er der ingen der har valgt, det ville afvise ca. 8,4% af berøringerne, og det
+ville dermed smugle en utalt variant ind i en kerne der står fast og ikke søges. **Filtre
+hører til trin 2 med egen præregistrering og eget tal i N.**
+
+Konsekvensen skal måles, ikke antages. Omkostningen i R er `2,627 / (2 × risiko_pt)` og
+afhænger altså omvendt af pointrisikoen — ikke af kontraktantallet. Ved et indeks omkring
+7.500 i 2019 er en median-zone ca. 9 point høj mod ca. 21 point ved 17.000, så
+**omkostningen i R er omtrent fire gange tungere i de tidlige år.** Derfor er disse
+kolonner obligatoriske **pr. år**, ikke kun samlet:
+
+| kolonne | hvorfor |
+|---|---|
+| risiko_pt_p10/p50/p90 | grundlaget for alt det øvrige |
+| omk_R_netto_p50 · be_WR_pct_netto_p50 | break-even flytter sig mellem årene |
+| kontrakter_p50/p90/maks | positionsloftet på $50K er **50 mikroer** (`REGLER_VERIFICERET.md` §90). Det binder næppe, men `kontrakter_maks` skal stå, så vi kan se det |
+| afvist_kontrakter_nul_n | zoner afvist fordi risikoen oversteg $250 pr. kontrakt |
+
+**Krydstjekket mod NQ i §8 rapporteres begge veje:** antal signaldage på MNQ *med*
+procentreglen (sammenligneligt med NQ's 1.817 / 5.350 fra optælling 2) og *med*
+dollarloftet (det trin A faktisk handler). De to tal er ikke ens, og det er ikke en
+regressionsfejl.
+
+**Regressionstjekket er uberørt.** Det kører `b4_k1_optaelling.py` uændret med normerede
+point, hvor procentreglen er korrekt. Kun handelsmodulet ændres.
 
 ## 5. Nulmodeller
 
