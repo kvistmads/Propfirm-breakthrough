@@ -149,6 +149,19 @@ kolonner obligatoriske **pr. år**, ikke kun samlet:
 | kontrakter_p50/p90/maks | positionsloftet på $50K er **50 mikroer** (`REGLER_VERIFICERET.md` §90). Det binder næppe, men `kontrakter_maks` skal stå, så vi kan se det |
 | afvist_kontrakter_nul_n | zoner afvist fordi risikoen oversteg $250 pr. kontrakt |
 
+**Positionsloftet bindes, og det er nyt — tilføjet 2026-09-23, før kørslen.** Målingen
+viser `kontrakter_maks` = 113 (buffer 10%) og 125 (buffer 0), altså over Topsteps loft på
+**50 mikroer** på en $50K-konto (`REGLER_VERIFICERET.md`). Det rammer 8-13 signaler
+(0,24-0,38%), alle i 2019-2020 hvor prisen var lavest. **Kontrakter loftes derfor ved 50.**
+
+Det ændrer **intet R-tal.** R er kontraktuafhængigt:
+
+`R_netto = (pnl_pt × 2 − 2,627) / (risiko_pt × 2)` — kontraktantallet står i både tæller og
+nævner og går ud. Loftet flytter kun dollarkolonnerne, og det fjerner ingen handel, fordi
+en handel tages ved `kontrakter ≥ 1`. Det gøres for at dollartallene er ærlige, for at
+ruinmodellen arver den rigtige størrelse, og fordi en limitordre på 113 mikroer er en
+mindre troværdig fyldning end en på 50. `kontrakter_loftet_n` rapporteres.
+
 **Krydstjekket mod NQ i §8 rapporteres begge veje:** antal signaldage på MNQ *med*
 procentreglen (sammenligneligt med NQ's 1.817 / 5.350 fra optælling 2) og *med*
 dollarloftet (det trin A faktisk handler). De to tal er ikke ens, og det er ikke en
@@ -168,8 +181,19 @@ som den rigtige kørsel. Kun zonens placering ændres.
 | **N1** | Zonens **dannelseslys** flyttes til et tilfældigt 15m-lys i **samme kalenderuge**. Side og H bevares; zonen bygges fra det lys' high (demand) eller low (supply) med samme H | Betyder basislys-plus-udbrudslys noget, eller ville et vilkårligt niveau af samme størrelse klare sig lige så godt under samme regler? | **afgør** |
 | **N2** | Dannelseslyset og tiden bevares; **E forskydes** med et tilfældigt beløb trukket fra ±[0,5H, 3H] | Er det prisen eller tidspunktet der bærer? | forklarer |
 
-N1 bevarer antal zoner, højdefordeling, side-balance og ugens volatilitetsregime. Den
-ødelægger mønsteret. **R = 500 gentagelser.** Kan en gentagelse ikke køres inden for rimelig
+N1 bevarer højdefordeling, side-balance og ugens volatilitetsregime. Den ødelægger
+mønsteret. ISO-ugen (mandag-søndag) er den gældende læsning af "samme kalenderuge".
+**R = 500 gentagelser.**
+
+**N1 bevarer ikke antallet af handler, og det skal rapporteres.** Den rigtige kerne har et
+udbrudslys der pr. konstruktion allerede har løftet prisen over zonen; en tilfældigt
+placeret zone skal først selv opleve det løft for at blive aktiv, og bliver ellers ugyldig.
+N1 vil derfor have en højere ugyldighedsrate end kernens 28,7% og færre handler pr.
+gentagelse. Det gør testen **konservativ**, ikke skæv, fordi målet er middel netto-R pr.
+handel og ikke en sum. Obligatorisk i rapporten: N1's `zoner_n`, `beroeringer_n`,
+`handler_n` og `ugyldig_foer_aktiv_pct` som median over gentagelserne, holdt op mod
+kernens egne. **Ligger N1's `handler_n` under 30% af kernens, skrives det som et forbehold
+ved fortolkningen.** Kan en gentagelse ikke køres inden for rimelig
 tid, rapporteres det og kørslen stoppes — R sænkes ikke stiltiende.
 
 ## 6. Den afgørende statistik og MDE
