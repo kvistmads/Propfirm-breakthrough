@@ -14,7 +14,7 @@ Kandidat 2 og frem mangler.
 | In-sample | 2016-01-01 til 2023-12-31, 2.012 handelsdage | PRD §4, besluttet 2026-09-22 |
 | Holdout | fra 2024-01-01, 676 handelsdage. Forseglet i `data/holdout.py` | PRD §4 |
 | Prisdata | NQ.v.0 1m fra Databento, aggregeret til 15m med `data/resample.py` | fase 1 |
-| MNQ mod NQ | MNQ-OHLCV findes ikke i cachen og ikke før 2019-05-06. **Antagelse (A):** et prisniveau i indekspoint er det samme på NQ og MNQ. Et krydstjek på MNQ-væger (~$9,46, fase 2's estimat) tages op når edge-testen præregistreres | fase 2 §1 |
+| MNQ mod NQ | MNQ.v.0 ohlcv-1m hentet 2026-09-23, 2019-05-06 til 2024-01-01, $5,98 (forbrug nu $33,29 af $40,00). **Antagelse (A):** et prisniveau i indekspoint er det samme på NQ og MNQ. Krydstjekket: `research/output/b4_mnq_data.md` — dækning, kontraktskift og 15m-vægernes afvigelse i tick. Om afvigelsen er lille nok afgøres når edge-testen præregistreres | fase 2 §1, `research/output/b4_mnq_data.md` |
 | Prisniveau | Afstande i point regnes i procent og omregnes ved NQ 29.138 | fase 2 |
 | Disciplin, tradeforvaltning, sizing | Højst $250, rundet ned. Én afgjort handel om dagen. BE testes som tre varianter | PRD §3a-3c |
 | Tidsvindue | Indgang 15:30-21:30 dansk tid (08:30-14:30 CT), fladt 21:50 | STRATEGI §3 |
