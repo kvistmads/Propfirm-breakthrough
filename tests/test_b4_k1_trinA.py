@@ -14,7 +14,9 @@ To lag testes hver for sig:
 """
 from __future__ import annotations
 
+import math
 from fractions import Fraction
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -177,38 +179,76 @@ class TestSizingEkte:
                                        zone_high=pris + risiko_pt))
         assert z["kontrakter_ekte"].iloc[0] >= 1
 
+    def test_kontrakter_loftes_ved_50_men_raa_beholdes(self):
+        """§4d, tilføjet 2026-09-23: Topsteps 50-mikro positionsloft. Loftet bider ved
+        risiko_pt < 2,5 point — en meget lille, billig 2019-zone; en normal 2023-zone
+        (21 point) skal ikke røres."""
+        billig = t.sizing_ekte(_zoner_stub(k1.DEMAND, E=8_002.0, zone_low=8_000.0,
+                                           zone_high=8_001.0))    # risiko 2 pt -> raa 62
+        assert billig["kontrakter_ekte_raa"].iloc[0] > 50
+        assert billig["kontrakter_ekte"].iloc[0] == 50.0
+        dyr = t.sizing_ekte(_zoner_stub(k1.DEMAND, E=17_021.0, zone_low=17_000.0,
+                                        zone_high=17_015.0))      # risiko 21 pt -> raa < 10
+        assert dyr["kontrakter_ekte_raa"].iloc[0] < 50
+        assert dyr["kontrakter_ekte"].iloc[0] == dyr["kontrakter_ekte_raa"].iloc[0]
+
+    def test_loftet_aendrer_intet_R_tal(self):
+        """R er kontraktuafhængigt — loftet må kun ændre kontrakter/omk_R_netto er
+        allerede kontraktuafhængig og upåvirket, sizing_ekte rører den slet ikke."""
+        z = t.sizing_ekte(_zoner_stub(k1.DEMAND, E=8_009.0, zone_low=8_000.0,
+                                      zone_high=8_005.0))
+        assert z["risiko_pt_ekte"].iloc[0] == pytest.approx(9.0)
+        assert z["omk_R_netto_ekte"].iloc[0] == pytest.approx(2.627 / (2 * 9.0))
+
 
 class TestSizingTabel:
     def _pop(self) -> pd.DataFrame:
-        # 2019: dyr risiko relativt (lav pris), én zone afvist af dollarloftet.
-        # 2023: billigere risiko relativt (høj pris), ingen afvist.
+        # 2019: dyr risiko relativt (lav pris), én zone afvist af dollarloftet, én loftet
+        # ved 50. 2023: billigere risiko relativt (høj pris), ingen afvist eller loftet.
         return pd.DataFrame([
             {"i_vindue": True, "dag": pd.Timestamp("2019-06-01"),
-             "risiko_pt_ekte": 9.0, "kontrakter_ekte": 13.0, "omk_R_netto_ekte": 0.1500},
+             "risiko_pt_ekte": 9.0, "kontrakter_ekte": 13.0, "kontrakter_ekte_raa": 13.0,
+             "omk_R_netto_ekte": 0.1500},
             {"i_vindue": True, "dag": pd.Timestamp("2019-07-01"),
-             "risiko_pt_ekte": 130.0, "kontrakter_ekte": 0.0, "omk_R_netto_ekte": 0.0800},
+             "risiko_pt_ekte": 130.0, "kontrakter_ekte": 0.0, "kontrakter_ekte_raa": 0.0,
+             "omk_R_netto_ekte": 0.0800},
+            {"i_vindue": True, "dag": pd.Timestamp("2019-08-01"),
+             "risiko_pt_ekte": 2.0, "kontrakter_ekte": 50.0, "kontrakter_ekte_raa": 62.0,
+             "omk_R_netto_ekte": 0.6568},
             {"i_vindue": True, "dag": pd.Timestamp("2023-06-01"),
-             "risiko_pt_ekte": 21.0, "kontrakter_ekte": 5.0, "omk_R_netto_ekte": 0.0625},
+             "risiko_pt_ekte": 21.0, "kontrakter_ekte": 5.0, "kontrakter_ekte_raa": 5.0,
+             "omk_R_netto_ekte": 0.0625},
             {"i_vindue": False, "dag": pd.Timestamp("2023-06-02"),        # ikke i populationen
-             "risiko_pt_ekte": 5.0, "kontrakter_ekte": 20.0, "omk_R_netto_ekte": 0.26},
+             "risiko_pt_ekte": 5.0, "kontrakter_ekte": 20.0, "kontrakter_ekte_raa": 20.0,
+             "omk_R_netto_ekte": 0.26},
         ])
 
     def test_population_er_i_vindue_foer_dollarloftet(self):
         tab = t.sizing_tabel(self._pop())
         alle = tab[tab["periode"] == "alle"].iloc[0]
-        assert alle["zoner_i_vindue_n"] == 3            # ikke de 4 — den fjerde er ikke i_vindue
+        assert alle["zoner_i_vindue_n"] == 4            # ikke de 5 — den femte er ikke i_vindue
         assert alle["afvist_kontrakter_nul_n"] == 1
 
     def test_pr_aar_og_konsekvensen_maales_ikke_antages(self):
         tab = t.sizing_tabel(self._pop())
         y19 = tab[tab["periode"] == "2019"].iloc[0]
         y23 = tab[tab["periode"] == "2023"].iloc[0]
-        assert (y19["zoner_i_vindue_n"], y23["zoner_i_vindue_n"]) == (2, 1)
+        assert (y19["zoner_i_vindue_n"], y23["zoner_i_vindue_n"]) == (3, 1)
         assert y19["afvist_kontrakter_nul_n"] == 1 and y23["afvist_kontrakter_nul_n"] == 0
         # 2019's median omkostning i R er tungere end 2023's — §4d's pointe.
         assert y19["omk_R_netto_p50"] > y23["omk_R_netto_p50"]
-        assert y19["kontrakter_maks"] == 13.0 and y23["kontrakter_maks"] == 5.0
+        assert y19["kontrakter_maks"] == 50.0 and y23["kontrakter_maks"] == 5.0
         assert y19["be_WR_pct_netto_p50"] > y23["be_WR_pct_netto_p50"]
+
+    def test_kontrakter_loftet_n_og_den_tynde_hale(self):
+        """§4d, tilføjet 2026-09-23: positionsloftet på 50 og hvor det bider."""
+        tab = t.sizing_tabel(self._pop())
+        y19 = tab[tab["periode"] == "2019"].iloc[0]
+        y23 = tab[tab["periode"] == "2023"].iloc[0]
+        assert y19["kontrakter_loftet_n"] == 1 and y23["kontrakter_loftet_n"] == 0
+        assert y19["handler_be_WR_over_50_pct_n"] == 1
+        assert y23["handler_be_WR_over_50_pct_n"] == 0
+        assert y19["omk_R_netto_p90"] > 0.5
 
     def test_tom_population_giver_ingen_fejl(self):
         tom = pd.DataFrame(columns=["i_vindue", "dag", "risiko_pt_ekte", "kontrakter_ekte",
@@ -416,6 +456,13 @@ def test_seks_varianter_koerer_og_giver_fornuftige_noegletal():
         assert set(res["handler"]["udfald"]).issubset(set(t.UDFALD))
         assert set(res["strejf"]["udfald"]).issubset(set(t.UDFALD))
         handler_i_alt += row["handler_n"]
+        # pr. side og pr. år skal summere til totalen, §8's nedbrydning
+        demand = t.noegletal_handler(res, side=t.DEMAND)
+        supply = t.noegletal_handler(res, side=t.SUPPLY)
+        assert demand["handler_n"] + supply["handler_n"] == row["handler_n"]
+        aar2023 = t.noegletal_handler(res, aar=2023)
+        assert aar2023["handler_n"] == row["handler_n"]        # al data er i 2023 her
+        assert t.noegletal_handler(res, aar=1999)["handler_n"] == 0
     assert handler_i_alt > 0
 
 
@@ -518,6 +565,18 @@ class TestFindZonerN1:
         assert (klass.iloc[0]["status"], klass.iloc[0]["slut_i"]) == ("beroert", b + 2)
 
 
+def test_zone_diagnostik_taeller_status():
+    z = pd.DataFrame({"status": ["beroert", "beroert", "ugyldig", "aktiv", "kontraktskift"]})
+    d = t.zone_diagnostik(z)
+    assert d == {"zoner_n": 5, "beroeringer_n": 2, "ugyldig_foer_aktiv_pct": pytest.approx(20.0)}
+
+
+def test_zone_diagnostik_tom_zoneliste():
+    z = pd.DataFrame({"status": pd.Series(dtype=object)})
+    d = t.zone_diagnostik(z)
+    assert d["zoner_n"] == 0 and math.isnan(d["ugyldig_foer_aktiv_pct"])
+
+
 def test_n1_gentagelse_koerer_og_har_samme_form_som_simuler_alle_varianter():
     from data import resample
 
@@ -544,3 +603,271 @@ def test_n1_gentagelse_koerer_og_har_samme_form_som_simuler_alle_varianter():
     assert len(ud) == 6
     for navn, row in ud.items():
         assert row["handler_n"] >= 0
+        assert row["zoner_n"] == len(ekte)     # N1 bevarer antallet af (forsøgte) zoner
+
+
+# ===========================================================================
+# 6. N2 (FORELØBIG) — E forskydes, §5
+# ===========================================================================
+
+class TestFindZonerN2:
+    def _ekte_raekke(self, side, E, zone_low, zone_high, basis_i=3, udbrud_i=4):
+        return pd.DataFrame([{
+            "side": side, "basis_i": basis_i, "udbrud_i": udbrud_i, "E": E,
+            "zone_low": zone_low, "zone_high": zone_high, "basis_close": zone_high,
+            "hoejde_pct": 1.0, "over_hul": False,
+        }])
+
+    def test_dannelseslys_og_tid_bevares_kun_E_flyttes(self):
+        bars = _bars15(10, start_ct="2023-06-05 09:00")
+        ekte = self._ekte_raekke(t.DEMAND, E=10_017.0, zone_low=9_995.0, zone_high=10_015.0)
+        rng = np.random.default_rng(0)
+        z = t.find_zoner_n2(bars, ekte, rng)
+        r = z.iloc[0]
+        assert (r["basis_i"], r["udbrud_i"]) == (3, 4)
+        assert (r["zone_high"], r["zone_low"]) == (10_015.0, 9_995.0)
+        assert r["E"] != 10_017.0
+
+    def test_forskydningen_er_mellem_0_5H_og_3H_i_begge_retninger(self):
+        bars = _bars15(10, start_ct="2023-06-05 09:00")
+        H = 20.0
+        ekte = self._ekte_raekke(t.DEMAND, E=10_017.0, zone_low=9_995.0, zone_high=10_015.0)
+        rng = np.random.default_rng(1)
+        forskydninger = []
+        for _ in range(200):
+            z = t.find_zoner_n2(bars, ekte, rng)
+            forskydninger.append(z.iloc[0]["E"] - 10_017.0)
+        afstande = np.abs(forskydninger)
+        assert (afstande >= 0.5 * H - 1e-9).all() and (afstande <= 3.0 * H + 1e-9).all()
+        assert (np.array(forskydninger) > 0).any() and (np.array(forskydninger) < 0).any()
+
+    def test_klassificer_v2_genbruges_uaendret_paa_n2_zoner(self):
+        """Smoke-test: uanset den trukne forskydning skal kerne v2's egen mekanik
+        (klassificer_v2, urørt) kunne klassificere N2's zoner uden fejl."""
+        bars = _bars15(20, start_ct="2023-06-14 09:00")
+        b = 3
+        bars.loc[bars.index[b], ["open", "high", "low", "close"]] = \
+            [10_000.0, 10_020.0, 9_995.0, 10_000.0]
+        bars.loc[bars.index[b + 1], ["open", "high", "low", "close"]] = \
+            [10_022.0, 10_040.0, 10_022.0, 10_022.0]
+        bars.loc[bars.index[b + 2], ["open", "high", "low", "close"]] = \
+            [10_015.0, 10_020.0, 9_990.0, 9_995.0]
+        ekte = self._ekte_raekke(t.DEMAND, E=10_021.0, zone_low=9_995.0, zone_high=10_020.0,
+                                 basis_i=b, udbrud_i=b + 1)
+        for seed in range(10):
+            z = t.find_zoner_n2(bars, ekte, np.random.default_rng(seed))
+            klass = t.k1.klassificer_v2(bars, z, Fraction(0))
+            assert klass.iloc[0]["status"] in ("beroert", "ugyldig", "aktiv",
+                                               "aldrig_aktiv", "kontraktskift")
+
+
+def test_n2_gentagelse_koerer_og_har_samme_form_som_n1():
+    from data import resample
+
+    DAG = "2023-06-14"
+    BASIS_D = (10_010, 10_015, 9_995, 10_000)
+    UDBRUD_D = (10_000, 10_030, 9_998, 10_020)
+    OVER = (10_022, 10_025, 10_020, 10_022)
+    GENNEM = (10_005, 10_006, 9_990, 9_991)
+
+    def _sti(lys15):
+        rows = []
+        for o, h, l, c in lys15:
+            path = np.linspace(o, c, 15)
+            for i, p in enumerate(path):
+                rows.append((p, h if i == 5 else p, l if i == 10 else p, p))
+        return rows
+
+    df_1m = _1m(_sti([BASIS_D, UDBRUD_D, OVER, GENNEM] + [OVER] * 200),
+               start_ct=f"{DAG} 09:00")
+    bars15 = resample.aggregate(df_1m, 15)
+    ekte_pr_buffer = {navn: t.k1.find_zoner_v2(bars15, buffer)
+                      for navn, buffer in t.BUFFER_VARIANTER.items()}
+    ud = t.n2_gentagelse(df_1m, bars15, ekte_pr_buffer, seed=7)
+    assert len(ud) == 6
+    for navn, row in ud.items():
+        assert row["handler_n"] >= 0
+
+
+# ===========================================================================
+# 7. Rapportlaget — Westfall-Young, krydstjek, beslutningsregel, rapport (§6-§8)
+# ===========================================================================
+
+def _fake_row(R: float, handler_n: int = 100, zoner_n: int = 200, beroeringer_n: int = 150,
+             ugyldig_pct: float = 28.7) -> dict:
+    return {"middel_R_netto": R, "middel_R_netto_ci95_lo": R - 0.05,
+            "middel_R_netto_ci95_hi": R + 0.05, "handler_n": handler_n,
+            "zoner_n": zoner_n, "beroeringer_n": beroeringer_n,
+            "ugyldig_foer_aktiv_pct": ugyldig_pct}
+
+
+VARIANTER_FAKE = [(b, be) for b in ("buffer_10", "buffer_0")
+                 for be in ("ingen", "BE_1_0R", "BE_1_2R")]
+
+
+class TestWestfallYoung:
+    def test_finder_bedste_variant_og_p_fwe_matcher_formlen(self):
+        virkelig = {v: _fake_row(0.05 * i) for i, v in enumerate(VARIANTER_FAKE)}
+        bedste_v = VARIANTER_FAKE[-1]                  # højeste R = 0,25
+        rng = np.random.default_rng(0)
+        n1_liste = [{v: _fake_row(rng.normal(0, 0.1)) for v in VARIANTER_FAKE}
+                   for _ in range(50)]
+        wy = t.westfall_young(virkelig, n1_liste)
+        assert wy["bedste_variant"] == bedste_v
+        assert wy["observeret_bedste_middel_R_netto"] == pytest.approx(0.25)
+        maks = np.array([max(rep[v]["middel_R_netto"] for v in VARIANTER_FAKE)
+                         for rep in n1_liste])
+        forventet_p = (1 + int((maks >= 0.25).sum())) / (1 + 50)
+        assert wy["p_fwe"] == pytest.approx(forventet_p)
+        assert wy["R"] == 50
+
+    def test_p_fwe_er_naer_1_naar_ingen_edge(self):
+        """Kernen er ikke bedre end N1's støj: p_FWE skal være stor, ikke lille."""
+        rng = np.random.default_rng(1)
+        virkelig = {v: _fake_row(rng.normal(0, 0.1)) for v in VARIANTER_FAKE}
+        n1_liste = [{v: _fake_row(rng.normal(0, 0.1)) for v in VARIANTER_FAKE}
+                   for _ in range(200)]
+        wy = t.westfall_young(virkelig, n1_liste)
+        assert wy["p_fwe"] > 0.05
+
+
+class TestBeslutningTrinA:
+    def _wy(self, bedste_R, n1_vaerdier):
+        varianter = VARIANTER_FAKE
+        virkelig = {v: _fake_row(0.0) for v in varianter}
+        virkelig[varianter[0]] = _fake_row(bedste_R)
+        n1_pr_variant = {v: np.array(n1_vaerdier if v == varianter[0] else [0.0] * len(n1_vaerdier))
+                        for v in varianter}
+        wy = {"varianter": varianter, "bedste_variant": varianter[0],
+             "observeret_bedste_middel_R_netto": bedste_R, "n1_pr_variant": n1_pr_variant}
+        return virkelig, wy
+
+    def test_brugbar_edge(self):
+        virkelig, wy = self._wy(0.25, list(np.random.default_rng(0).normal(0, 0.05, 500)))
+        wy["p_fwe"] = 0.01
+        b = t.beslutning_trin_a(wy, virkelig)
+        assert b["kategori_punktestimat"] == "brugbar_edge"
+
+    def test_parkeres_under_n1s_5_pct_fraktil(self):
+        n1 = list(np.linspace(-0.5, 0.5, 500))          # 5%-fraktil ≈ -0,45
+        virkelig, wy = self._wy(-0.9, n1)
+        wy["p_fwe"] = 0.9
+        b = t.beslutning_trin_a(wy, virkelig)
+        assert b["kategori_punktestimat"] == "parkeres"
+
+    def test_neutral_naar_p_fwe_over_005_og_over_n1_median(self):
+        n1 = list(np.linspace(-0.2, 0.2, 500))           # median ≈ 0
+        virkelig, wy = self._wy(0.05, n1)
+        wy["p_fwe"] = 0.5
+        b = t.beslutning_trin_a(wy, virkelig)
+        assert b["kategori_punktestimat"] == "neutral"
+
+    def test_uafgjort_naar_ci_krydser_en_graense(self):
+        """N1's median er 0: R = 0,03 er 'neutral' (>= median), men R − 0,05 = −0,02 er
+        under medianen (0) — CI'et krydser grænsen, og den laveste kategori skal gælde."""
+        n1 = list(np.linspace(-0.2, 0.2, 500))            # median ≈ 0
+        virkelig, wy = self._wy(0.03, n1)                 # CI [-0,02; 0,08]
+        wy["p_fwe"] = 0.5
+        b = t.beslutning_trin_a(wy, virkelig)
+        assert b["uafgjort"] is True
+        assert b["kategori"] == "graenseomraade"          # laveste af neutral/graenseomraade
+
+    def test_afgjort_naar_ci_ikke_krydser_en_graense(self):
+        n1 = list(np.linspace(-0.2, 0.2, 500))
+        virkelig, wy = self._wy(0.15, n1)                 # CI [0,10; 0,20], langt fra grænserne
+        wy["p_fwe"] = 0.5
+        b = t.beslutning_trin_a(wy, virkelig)
+        assert b["uafgjort"] is False
+        assert b["kategori"] == b["kategori_punktestimat"] == "neutral"
+
+    def test_kategori_raekkefoelge_er_konsistent(self):
+        assert t._KATEGORI_RAEKKEFOELGE[0] == "parkeres"
+        assert t._KATEGORI_RAEKKEFOELGE[-1] == "brugbar_edge"
+
+
+class TestKrydstjekNQ:
+    def test_taeller_begge_veje_separat(self):
+        z = pd.DataFrame({
+            "signal": [True, True, False, False],
+            "i_vindue": [True, True, True, False],
+            "kontrakter_ekte": [2.0, 0.0, 3.0, 5.0],
+            "dag": pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-02", "2020-01-03"]),
+        })
+        kryds = t.krydstjek_nq(z)
+        assert (kryds["dage_med_signal_procentregel_n"], kryds["signaler_procentregel_n"]) == (2, 2)
+        # dollarloft: i_vindue & kontrakter>=1 -> rækker 0 og 2 (række 1 har 0 kontrakter)
+        assert (kryds["dage_med_signal_dollarloft_n"], kryds["signaler_dollarloft_n"]) == (2, 2)
+        assert kryds["nq_dage_med_signal_n"] == t.NQ_REFERENCE_DAGE_MED_SIGNAL_N
+
+
+def _byg_lille_koersel(seed_n1=(11, 12), seed_n2=(21,)):
+    """Et lille, ægte gennemløb (samme opskrift som andre smoke-tests) plus et par
+    rigtige N1/N2-gentagelser — nok til at teste hele rapportlaget uden en time lang
+    kørsel. Ikke en statistisk meningsfuld test af selve edge-spørgsmålet."""
+    from data import resample
+
+    DAG = "2023-06-14"
+    BASIS_D = (10_010, 10_015, 9_995, 10_000)
+    UDBRUD_D = (10_000, 10_030, 9_998, 10_020)
+    OVER = (10_022, 10_025, 10_020, 10_022)
+    GENNEM = (10_005, 10_006, 9_990, 9_991)
+
+    def _sti(lys15):
+        rows = []
+        for o, h, l, c in lys15:
+            path = np.linspace(o, c, 15)
+            for i, p in enumerate(path):
+                rows.append((p, h if i == 5 else p, l if i == 10 else p, p))
+        return rows
+
+    df_1m = _1m(_sti([BASIS_D, UDBRUD_D, OVER, GENNEM] + [OVER] * 300),
+               start_ct=f"{DAG} 09:00")
+    bars15 = resample.aggregate(df_1m, 15)
+
+    virkelig = t.simuler_alle_varianter(df_1m, bars15)
+    virkelig_noegletal = {v: t.noegletal_handler(res) for v, res in virkelig.items()}
+
+    ekte_v2 = t.k1.find_zoner_v2(bars15, t.k1.BUFFER_V2)
+    ekte_side = ekte_v2["side"].to_numpy()
+    ekte_basis_i = ekte_v2["basis_i"].to_numpy()
+    ekte_H = (ekte_v2["zone_high"] - ekte_v2["zone_low"]).to_numpy(dtype=float)
+    n1_liste = [t.n1_gentagelse(df_1m, bars15, ekte_side, ekte_basis_i, ekte_H, s)
+               for s in seed_n1]
+
+    ekte_pr_buffer = {navn: t.k1.find_zoner_v2(bars15, buffer)
+                      for navn, buffer in t.BUFFER_VARIANTER.items()}
+    n2_liste = [t.n2_gentagelse(df_1m, bars15, ekte_pr_buffer, s) for s in seed_n2]
+
+    return virkelig, virkelig_noegletal, n1_liste, n2_liste
+
+
+def test_fuld_rapportlag_koerer_uden_fejl_paa_et_lille_ægte_gennemloeb():
+    virkelig, virkelig_noegletal, n1_liste, n2_liste = _byg_lille_koersel()
+
+    wy = t.westfall_young(virkelig_noegletal, n1_liste)
+    assert set(wy["varianter"]) == set(VARIANTER_FAKE)
+    assert wy["bedste_variant"] in wy["varianter"]
+
+    samm, forbehold = t.n1_kerne_sammenligning(virkelig_noegletal, n1_liste, wy)
+    assert len(samm) == 6
+    assert isinstance(forbehold, list)
+
+    kryds = t.krydstjek_nq(virkelig[("buffer_10", "ingen")]["zoner"])
+    assert kryds["dage_med_signal_dollarloft_n"] >= kryds["dage_med_signal_procentregel_n"] - 5
+
+    b = t.beslutning_trin_a(wy, virkelig_noegletal)
+    assert b["kategori"] in t._KATEGORI_RAEKKEFOELGE
+
+    tabel = t.fuld_tabel(virkelig, wy, n2_liste)
+    assert set(tabel["side"]) == {"alle", "demand", "supply"}
+    assert set(tabel["buffer"]) == {"buffer_10", "buffer_0"}
+    assert len(tabel) == 6 * 3 * (1 + len(t.AAR_LISTE))     # alle+hvert år, pr. side, pr. variant
+
+    md = t.skriv_trin_a_md(
+        {"kryds": kryds, "beslutning": b, "sammenligning": samm, "forbehold": forbehold,
+         "tabel": tabel, "n1_reps": len(n1_liste), "n2_reps": len(n2_liste)},
+        {"koert_utc": "x", "head": "f" * 40,
+         "commits": {t._rel(t.PREREG): "f" * 40, t._rel(Path(t.__file__)): "f" * 40},
+         "n_1m": 1000, "n_15m": 100})
+    assert "# B4 kandidat 1" in md
+    assert wy["bedste_variant"][0] in md

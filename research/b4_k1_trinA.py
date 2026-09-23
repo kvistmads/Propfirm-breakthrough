@@ -105,6 +105,13 @@ def sizing_ekte(zoner: pd.DataFrame) -> pd.DataFrame:
 
     Risiko = E − zone_low (demand) / zone_high − E (supply) — reelle priser, §4d.
     Samme afrunding før floor som k1's ``sizing()`` (fjerner flydende tals støj).
+
+    **Kontrakter loftes ved 50** (Topsteps positionsloft på $50K, `REGLER_VERIFICERET.md`
+    §90, tilføjet §4d 2026-09-23). Det ændrer intet R-tal — R regnes fra ``risiko_pt_ekte``
+    og ``omk_R_netto_ekte`` alene, kontraktantallet indgår ikke. Loftet fjerner heller
+    ingen handel, for gate'en er ``kontrakter_ekte >= 1``, og et loft på 50 kan kun sænke
+    et tal der allerede var ≥ 1. ``kontrakter_ekte_raa`` er den uloftede floor-værdi, kun
+    til at tælle ``kontrakter_loftet_n`` — den bruges ikke andre steder.
     """
     z = zoner.copy()
     demand = (z["side"] == DEMAND).to_numpy()
@@ -113,7 +120,9 @@ def sizing_ekte(zoner: pd.DataFrame) -> pd.DataFrame:
     risiko_pt = np.where(demand, E - low, high - E)
     risiko_usd = risiko_pt * MNQ_USD_PR_POINT
     z["risiko_pt_ekte"] = risiko_pt
-    z["kontrakter_ekte"] = np.floor(np.round(RISIKO_USD / risiko_usd, 9))
+    kontrakter_raa = np.floor(np.round(RISIKO_USD / risiko_usd, 9))
+    z["kontrakter_ekte_raa"] = kontrakter_raa
+    z["kontrakter_ekte"] = np.minimum(kontrakter_raa, KONTRAKTER_LOFT)
     z["omk_R_netto_ekte"] = OMK_USD_RUNDTUR / risiko_usd
     return z
 
@@ -126,11 +135,17 @@ def _sizing_raekke(etiket: str, sub: pd.DataFrame) -> dict:
         row[f"kontrakter_p{q}"] = k1._p(sub["kontrakter_ekte"], q)
     row["kontrakter_maks"] = float(sub["kontrakter_ekte"].max()) if len(sub) else float("nan")
     row["omk_R_netto_p50"] = k1._p(sub["omk_R_netto_ekte"], 50)
+    row["omk_R_netto_p90"] = k1._p(sub["omk_R_netto_ekte"], 90)
     row["be_WR_pct_netto_p50"] = (100 * breakeven_win_rate(RR, 1.0, row["omk_R_netto_p50"])
                                   if len(sub) else float("nan"))
     afvist = int((sub["kontrakter_ekte"] == 0).sum())
     row["afvist_kontrakter_nul_n"] = afvist
     row["afvist_kontrakter_nul_pct"] = 100 * afvist / len(sub) if len(sub) else float("nan")
+    # §4d: positionsloftet på 50 mikroer, og den tynde hale det afslører (be_WR > 50%).
+    row["kontrakter_loftet_n"] = (int((sub["kontrakter_ekte_raa"] > KONTRAKTER_LOFT).sum())
+                                  if len(sub) else 0)
+    row["handler_be_WR_over_50_pct_n"] = (int((sub["omk_R_netto_ekte"] > 0.5).sum())
+                                          if len(sub) else 0)
     return row
 
 
@@ -446,14 +461,118 @@ def n1_gentagelse(df_1m: pd.DataFrame, bars_15m: pd.DataFrame, ekte_side: np.nda
 
 
 # ---------------------------------------------------------------------------
+# N2, §5 — FORELØBIG, samme forbehold som N1: bygget til rapporten, ikke fastlagt i
+# detalje af §5 (den angiver intet gentagelsestal for N2, kun R = 500 for N1).
+# ---------------------------------------------------------------------------
+
+# §5 giver ikke noget R for N2 ("forklarer", indgår ikke i beslutningsreglen). Et
+# pragmatisk, oplyst valg, så "_p50" er en ægte median over gentagelser som for N1 —
+# ikke ét enkelt punkt. Rapporteres som sådan, ikke skjult.
+N2_GENTAGELSER = 30
+
+
+def find_zoner_n2(bars: pd.DataFrame, ekte: pd.DataFrame,
+                  rng: np.random.Generator) -> pd.DataFrame:
+    """N2, §5: dannelseslys og tid bevares; E forskydes med et tilfældigt beløb trukket
+    fra ±[0,5H, 3H] (fortegn og størrelse trukket uafhængigt, størrelsen ensfordelt i
+    [0,5H, 3H]). Zonens øvrige mekanik — aktivering, ugyldig, berøring, kontraktskift —
+    er kerne v2's egne regler, uændrede; kun E flyttes. ``ekte`` er
+    ``b4_k1_optaelling.find_zoner_v2``'s egen tabel for den buffer-variant der forklares
+    (E, zone_high, zone_low, basis_i, udbrud_i er dens rigtige, urørte værdier).
+    """
+    o, h, l, c = (bars[k].to_numpy(dtype=float) for k in ("open", "high", "low", "close"))
+    n = len(bars)
+    iid = (bars["instrument_id"].to_numpy() if "instrument_id" in bars.columns
+           else np.zeros(n, dtype=np.int64))
+    skift = np.flatnonzero(iid[1:] != iid[:-1]) + 1
+    naeste_skift = np.r_[skift, n][np.searchsorted(skift, np.arange(n), side="right")]
+
+    rows = []
+    for row in ekte.itertuples():
+        demand = row.side == DEMAND
+        H = row.zone_high - row.zone_low
+        fortegn = 1.0 if rng.random() < 0.5 else -1.0
+        magnitude = rng.uniform(0.5 * H, 3.0 * H)
+        E_n2 = row.E + fortegn * magnitude
+        b, u = int(row.basis_i), int(row.udbrud_i)
+        k = int(naeste_skift[b])
+        zone_high, zone_low = row.zone_high, row.zone_low
+        aktiv = -1
+        if k <= u:
+            status, slut = k1.KONTRAKTSKIFT, k
+        else:
+            forladt = l[u:k] > E_n2 if demand else h[u:k] < E_n2
+            gennem = c[u:k] < zone_low if demand else c[u:k] > zone_high
+            gennem[0] = False
+            ia = int(np.argmax(forladt)) if forladt.any() else None
+            ig = int(np.argmax(gennem)) if gennem.any() else None
+            if ig is not None and (ia is None or ig < ia):
+                status, slut = k1.UGYLDIG, u + ig
+            elif ia is not None:
+                aktiv = u + ia
+                ramt = (l[aktiv + 1:k] <= E_n2) if demand else (h[aktiv + 1:k] >= E_n2)
+                if ramt.any():
+                    status, slut = k1.BEROERT, aktiv + 1 + int(np.argmax(ramt))
+                elif k < n:
+                    status, slut = k1.KONTRAKTSKIFT, k
+                else:
+                    status, slut = k1.AKTIV, -1
+            elif k < n:
+                status, slut = k1.KONTRAKTSKIFT, k
+            else:
+                status, slut = k1.ALDRIG_AKTIV, -1
+        rows.append((row.side, b, u, bars.index[b], bars.index[u], zone_high, zone_low,
+                    row.basis_close, row.hoejde_pct, row.over_hul, status, slut,
+                    bars.index[slut] if slut >= 0 else pd.NaT,
+                    float("nan"), E_n2, aktiv,
+                    bars.index[aktiv] if aktiv >= 0 else pd.NaT))
+    z = pd.DataFrame(rows, columns=k1.ZONEKOLONNER_V2)
+    for kol in ("basis_tid", "udbrud_tid", "slut_tid", "aktiv_tid"):
+        z[kol] = pd.to_datetime(z[kol], utc=True)
+    return z
+
+
+def n2_gentagelse(df_1m: pd.DataFrame, bars_15m: pd.DataFrame,
+                  ekte_pr_buffer: dict[str, pd.DataFrame], seed: int) -> dict:
+    """Én N2-gentagelse, alle 6 varianter — samme form som ``n1_gentagelse``."""
+    rng = np.random.default_rng(seed)
+    ud = {}
+    for buffer_navn, buffer in BUFFER_VARIANTER.items():
+        zoner_n2 = find_zoner_n2(bars_15m, ekte_pr_buffer[buffer_navn], rng)
+        klass = sizing_ekte(k1.klassificer_v2(bars_15m, zoner_n2, buffer))
+        for be_navn, be_r in BE_VARIANTER.items():
+            handler, tael, strejf = handler_for_variant(df_1m, klass, be_r)
+            ud[(buffer_navn, be_navn)] = noegletal_handler(
+                {"handler": handler, "tael": tael, "strejf": strejf, "zoner": klass})
+    return ud
+
+
+# ---------------------------------------------------------------------------
 # Nøgletal, §8 (uddrag — den fulde rapport skrives først i trin 2)
 # ---------------------------------------------------------------------------
 
-def noegletal_handler(res: dict) -> dict:
-    """Hovedtallene for én variant: middel-R, udfaldsfordeling, strejf-diagnosen."""
-    handler, tael, strejf, zoner = res["handler"], res["tael"], res["strejf"], res["zoner"]
+def zone_diagnostik(klass: pd.DataFrame) -> dict:
+    """§5: ``zoner_n``, ``beroeringer_n`` og ``ugyldig_foer_aktiv_pct`` — N1's krævede
+    diagnostik, holdt op mod kernens egne (samme funktion bruges på begge)."""
+    n = len(klass)
+    beroert = int((klass["status"] == k1.BEROERT).sum())
+    ugyldig = int((klass["status"] == k1.UGYLDIG).sum())
+    return {"zoner_n": n, "beroeringer_n": beroert,
+            "ugyldig_foer_aktiv_pct": 100 * ugyldig / n if n else float("nan")}
+
+
+def _noegletal(handler: pd.DataFrame, strejf: pd.DataFrame, zoner: pd.DataFrame,
+               tael: dict) -> dict:
+    """Kernen i ``noegletal_handler`` — opererer på allerede filtrerede tabeller, så den
+    kan genbruges til "pr. side" og "pr. år"-nedbrydningerne uden at køre dagens
+    gennemløb igen. ``tael`` (springet over position/dagslukket) er et dagsniveau-tal,
+    ikke opdelt pr. side eller år — det rapporteres uændret, samme tal i hver nedbrydning.
+    """
     row = dict(tael)
+    row.update(zone_diagnostik(zoner))
     row["handler_n"] = len(handler)
+    row["censurerede_zoner_n"] = int(
+        zoner["status"].isin((k1.AKTIV, k1.ALDRIG_AKTIV)).sum()) if len(zoner) else 0
     if len(handler):
         row["middel_R_brutto"] = float(handler["R_brutto"].mean())
         row["middel_R_netto"] = float(handler["R_netto"].mean())
@@ -496,6 +615,33 @@ def noegletal_handler(res: dict) -> dict:
     row["afvist_kontrakter_nul_n"] = int(
         (zoner["i_vindue"] & (zoner["kontrakter_ekte"] == 0)).sum())
     return row
+
+
+def _aar_maske(df: pd.DataFrame, kolonne: str, aar: int) -> pd.DataFrame:
+    """``df[df[kolonne].dt.year == aar]``, robust mod en tom tabel (object-dtype)."""
+    if len(df) == 0:
+        return df
+    return df[pd.DatetimeIndex(df[kolonne]).year == aar]
+
+
+def noegletal_handler(res: dict, side: str | None = None, aar: int | None = None) -> dict:
+    """Hovedtallene for én variant: middel-R, udfaldsfordeling, strejf-diagnosen.
+
+    ``side`` (demand/supply) og ``aar`` filtrerer handler/strejf/zoner før aggregeringen
+    — §8's krav om "plus demand og supply hver for sig, plus pr. år".
+    """
+    handler, strejf, zoner = res["handler"], res["strejf"], res["zoner"]
+    if side is not None:
+        handler = handler[handler["side"] == side]
+        strejf = strejf[strejf["side"] == side]
+        zoner = zoner[zoner["side"] == side]
+    if aar is not None:
+        handler = _aar_maske(handler, "dag", aar)
+        strejf = _aar_maske(strejf, "dag", aar)
+        # "dag" er kun sat for berørte zoner (NaT ellers) — basis_tid findes for alle
+        # statusser og er den rigtige tidsreference for zone-niveauets årsopdeling.
+        zoner = _aar_maske(zoner, "basis_tid", aar)
+    return _noegletal(handler, strejf, zoner, res["tael"])
 
 
 # ---------------------------------------------------------------------------
@@ -617,6 +763,334 @@ def n1_tidsmaaling(n_gentagelser: int = 5, max_workers: int | None = None) -> di
     }
 
 
+# ---------------------------------------------------------------------------
+# Trin 2: selve kørslen — §6-§8
+# ---------------------------------------------------------------------------
+
+# Optælling 2's helsample-facit (2016-01-01 til 2023-12-31), citeret til sammenligning i
+# krydstjekket, §4d/§8 — ikke genberegnet for trin A's delperiode.
+NQ_REFERENCE_DAGE_MED_SIGNAL_N = 1817
+NQ_REFERENCE_SIGNALER_N = 5350
+NQ_REFERENCE_PERIODE = "2016-01-01 til 2023-12-31 (optælling 2, helsample, buffer 10%)"
+
+
+def westfall_young(virkelig: dict[tuple, dict], n1_liste: list[dict[tuple, dict]]) -> dict:
+    """§6: Westfall-Young maks-statistik. ``virkelig`` og hvert element i ``n1_liste`` er
+    {(buffer,be): noegletal}-ordbøger. p_FWE er kun defineret for den observerede bedste
+    variant — Westfall-Young beskytter netop VALGET af den bedste blandt de 6."""
+    varianter = list(virkelig.keys())
+    virkelig_R = {v: virkelig[v]["middel_R_netto"] for v in varianter}
+    bedste_variant = max(varianter, key=lambda v: virkelig_R[v])
+    observeret_bedste = virkelig_R[bedste_variant]
+
+    n1_maks = np.array([
+        np.nanmax([rep[v]["middel_R_netto"] for v in varianter]) for rep in n1_liste])
+    R = len(n1_liste)
+    p_fwe = (1 + int((n1_maks >= observeret_bedste).sum())) / (1 + R)
+
+    n1_pr_variant = {v: np.array([rep[v]["middel_R_netto"] for rep in n1_liste])
+                     for v in varianter}
+    n1_handler_pr_variant = {v: np.array([rep[v]["handler_n"] for rep in n1_liste])
+                             for v in varianter}
+    return {"varianter": varianter, "bedste_variant": bedste_variant,
+            "observeret_bedste_middel_R_netto": observeret_bedste, "p_fwe": p_fwe, "R": R,
+            "n1_maks_fordeling": n1_maks, "n1_pr_variant": n1_pr_variant,
+            "n1_handler_pr_variant": n1_handler_pr_variant}
+
+
+def krydstjek_nq(mnq_zoner_buffer10: pd.DataFrame) -> dict:
+    """§4d/§8: signaldage/signaler for kerne v2 på MNQ i delperioden, BEGGE veje — med
+    procentreglen (k1's egen ``signal``, sammenligneligt med NQ's tal) og med
+    dollarloftet (``i_vindue`` og ``kontrakter_ekte >= 1``, det trin A faktisk handler).
+    De to tal er ikke ens, og det er ikke en regressionsfejl.
+    """
+    z = mnq_zoner_buffer10
+    sig_pct = z[z["signal"]]
+    sig_dollar = z[z["i_vindue"].astype(bool) & (z["kontrakter_ekte"] >= 1)]
+    return {
+        "dage_med_signal_procentregel_n": int(sig_pct["dag"].dt.normalize().nunique()),
+        "signaler_procentregel_n": int(len(sig_pct)),
+        "dage_med_signal_dollarloft_n": int(sig_dollar["dag"].dt.normalize().nunique()),
+        "signaler_dollarloft_n": int(len(sig_dollar)),
+        "nq_dage_med_signal_n": NQ_REFERENCE_DAGE_MED_SIGNAL_N,
+        "nq_signaler_n": NQ_REFERENCE_SIGNALER_N, "nq_periode": NQ_REFERENCE_PERIODE,
+    }
+
+
+def _p_liste(vaerdier: np.ndarray, q: float) -> float:
+    return float(np.percentile(vaerdier, q)) if len(vaerdier) else float("nan")
+
+
+def variant_raekke(variant: tuple, virkelig: dict, wy: dict, n2_liste: list[dict],
+                   side: str | None = None, aar: int | None = None) -> dict:
+    """Én række i hovedtabellen, §8 — den rigtige kernes tal, plus N1 og N2's nøgletal
+    for netop denne variant. N1/N2's fordelinger er over HELE gentagelser og filtreres
+    ikke selv pr. side/år (det ville kræve at gemme hver gentagelses fulde handelstabel —
+    §8 beder kun om N1/N2's tal på variant-niveau, ikke nedbrudt yderligere)."""
+    buffer_navn, be_navn = variant
+    row = {"buffer": buffer_navn, "BE": be_navn, "side": side or "alle",
+          "periode": str(aar) if aar else "2019-2023"}
+    row.update(noegletal_handler(virkelig[variant], side=side, aar=aar))
+
+    n1_R = wy["n1_pr_variant"][variant]
+    row["N1_middel_R_netto_p5"] = _p_liste(n1_R, 5)
+    row["N1_middel_R_netto_p50"] = _p_liste(n1_R, 50)
+    row["N1_middel_R_netto_p95"] = _p_liste(n1_R, 95)
+    row["N1_handler_n_p50"] = _p_liste(wy["n1_handler_pr_variant"][variant], 50)
+    if variant == wy["bedste_variant"] and side is None and aar is None:
+        row["p_FWE"] = wy["p_fwe"]
+    else:
+        row["p_FWE"] = float("nan")
+
+    n2_R = np.array([rep[variant]["middel_R_netto"] for rep in n2_liste])
+    row["N2_middel_R_netto_p50"] = _p_liste(n2_R, 50)
+    return row
+
+
+def n1_kerne_sammenligning(virkelig: dict, n1_liste: list[dict],
+                          wy: dict) -> tuple[pd.DataFrame, list[tuple]]:
+    """§5's obligatoriske tabel: N1's zoner_n/beroeringer_n/handler_n/
+    ugyldig_foer_aktiv_pct (median over gentagelserne) holdt op mod kernens egne, pr.
+    variant. Returnerer (tabel, liste over varianter hvor N1's handler_n < 30% af
+    kernens — forbeholdet §5 kræver hvis det sker).
+    """
+    rows, forbehold = [], []
+    for v in wy["varianter"]:
+        kerne = virkelig[v]
+        zoner_n1 = np.array([rep[v]["zoner_n"] for rep in n1_liste], dtype=float)
+        beroeringer_n1 = np.array([rep[v]["beroeringer_n"] for rep in n1_liste], dtype=float)
+        handler_n1 = np.array([rep[v]["handler_n"] for rep in n1_liste], dtype=float)
+        ugyldig_n1 = np.array([rep[v]["ugyldig_foer_aktiv_pct"] for rep in n1_liste],
+                              dtype=float)
+        n1_handler_p50 = _p_liste(handler_n1, 50)
+        if kerne["handler_n"] > 0 and n1_handler_p50 < 0.30 * kerne["handler_n"]:
+            forbehold.append(v)
+        rows.append({
+            "buffer": v[0], "BE": v[1],
+            "kerne_zoner_n": kerne["zoner_n"], "N1_zoner_n_p50": _p_liste(zoner_n1, 50),
+            "kerne_beroeringer_n": kerne["beroeringer_n"],
+            "N1_beroeringer_n_p50": _p_liste(beroeringer_n1, 50),
+            "kerne_handler_n": kerne["handler_n"], "N1_handler_n_p50": n1_handler_p50,
+            "kerne_ugyldig_foer_aktiv_pct": kerne["ugyldig_foer_aktiv_pct"],
+            "N1_ugyldig_foer_aktiv_pct_p50": _p_liste(ugyldig_n1, 50),
+        })
+    return pd.DataFrame(rows), forbehold
+
+
+# §7's fire kategorier, fra parkeret (værst) til brugbar edge (bedst) — brugt til at finde
+# den laveste kategori når konfidensintervallet krydser en grænse.
+_KATEGORI_RAEKKEFOELGE = ["parkeres", "graenseomraade", "neutral", "reel_men_lille",
+                         "brugbar_edge"]
+
+
+def _klassificer_udfald(p: float, R: float, n1_median: float, n1_p5: float) -> str:
+    if p <= 0.05 and R >= 0.20:
+        return "brugbar_edge"
+    if p <= 0.05 and 0.10 <= R < 0.20:
+        return "reel_men_lille"
+    if p > 0.05 and R >= n1_median:
+        return "neutral"
+    if R < n1_p5:
+        return "parkeres"
+    return "graenseomraade"
+
+
+def beslutning_trin_a(wy: dict, virkelig_noegletal: dict) -> dict:
+    """§7, anvendt mekanisk på den observerede bedste variant. "Krydser
+    konfidensintervallet en grænse, gælder den laveste kategori" — klassificerer CI'ets
+    to ender hver for sig og tager den laveste hvis de er uenige."""
+    v = wy["bedste_variant"]
+    bedste = virkelig_noegletal[v]
+    p, R = wy["p_fwe"], bedste["middel_R_netto"]
+    lo, hi = bedste["middel_R_netto_ci95_lo"], bedste["middel_R_netto_ci95_hi"]
+    n1_median = _p_liste(wy["n1_pr_variant"][v], 50)
+    n1_p5 = _p_liste(wy["n1_pr_variant"][v], 5)
+    kat_punkt = _klassificer_udfald(p, R, n1_median, n1_p5)
+    kat_lo = _klassificer_udfald(p, lo, n1_median, n1_p5)
+    kat_hi = _klassificer_udfald(p, hi, n1_median, n1_p5)
+    uafgjort = len({kat_lo, kat_hi}) > 1
+    kategori = (min((kat_lo, kat_hi), key=_KATEGORI_RAEKKEFOELGE.index) if uafgjort
+               else kat_punkt)
+    return {"variant": v, "p_fwe": p, "middel_R_netto": R, "ci_lo": lo, "ci_hi": hi,
+            "n1_median": n1_median, "n1_p5": n1_p5, "kategori_punktestimat": kat_punkt,
+            "uafgjort": uafgjort, "kategori": kategori}
+
+
+AAR_LISTE = list(range(2019, 2024))
+
+
+def fuld_tabel(virkelig: dict, wy: dict, n2_liste: list[dict]) -> pd.DataFrame:
+    """Hele §8-tabellen: pr. variant (6), plus demand/supply hver for sig, plus pr. år.
+
+    ``virkelig`` er ``simuler_alle_varianter``'s RÅ resultat (handler/strejf/zoner pr.
+    variant) — ``variant_raekke`` filtrerer selv pr. side/år via ``noegletal_handler``.
+    """
+    rows = []
+    for v in wy["varianter"]:
+        for side in (None, k1.DEMAND, k1.SUPPLY):
+            rows.append(variant_raekke(v, virkelig, wy, n2_liste, side=side))
+            for aar in AAR_LISTE:
+                rows.append(variant_raekke(v, virkelig, wy, n2_liste, side=side, aar=aar))
+    return pd.DataFrame(rows)
+
+
+def koer_trin_a(n1_reps: int = 500, n2_reps: int = N2_GENTAGELSER,
+                max_workers: int | None = None) -> dict:
+    """Selve trin A-kørslen, §6-§8. Regressionstjekket først — afviger det, køres intet."""
+    if not regressionstjek():
+        raise RuntimeError("REGRESSIONSTJEK afveg — trin A køres ikke")
+
+    df = holdout.load_in_sample(MNQ)
+    df = df[(df.index >= MNQ_START) & (df.index < TRIN_A_SLUT)]
+    bars = resample.aggregate(df, k1.BAR_MIN)
+
+    virkelig = simuler_alle_varianter(df, bars)
+    virkelig_noegletal = {v: noegletal_handler(res) for v, res in virkelig.items()}
+
+    ekte_v2 = k1.find_zoner_v2(bars, k1.BUFFER_V2)
+    ekte_side = ekte_v2["side"].to_numpy()
+    ekte_basis_i = ekte_v2["basis_i"].to_numpy()
+    ekte_H = (ekte_v2["zone_high"] - ekte_v2["zone_low"]).to_numpy(dtype=float)
+    n_workere = max_workers or (os.cpu_count() or 1)
+
+    n1_liste = []
+    with ProcessPoolExecutor(max_workers=n_workere) as pool:
+        futures = [pool.submit(n1_gentagelse, df, bars, ekte_side, ekte_basis_i, ekte_H,
+                               2000 + i) for i in range(n1_reps)]
+        for f in as_completed(futures):
+            n1_liste.append(f.result())
+
+    ekte_pr_buffer = {navn: k1.find_zoner_v2(bars, buffer)
+                      for navn, buffer in BUFFER_VARIANTER.items()}
+    n2_liste = []
+    with ProcessPoolExecutor(max_workers=n_workere) as pool:
+        futures = [pool.submit(n2_gentagelse, df, bars, ekte_pr_buffer, 3000 + i)
+                  for i in range(n2_reps)]
+        for f in as_completed(futures):
+            n2_liste.append(f.result())
+
+    wy = westfall_young(virkelig_noegletal, n1_liste)
+    sammenligning, forbehold = n1_kerne_sammenligning(virkelig_noegletal, n1_liste, wy)
+    kryds = krydstjek_nq(virkelig[("buffer_10", "ingen")]["zoner"])
+    beslutning = beslutning_trin_a(wy, virkelig_noegletal)
+    tabel = fuld_tabel(virkelig, wy, n2_liste)
+
+    return {
+        "df": df, "bars": bars, "virkelig": virkelig, "virkelig_noegletal": virkelig_noegletal,
+        "n1_liste": n1_liste, "n2_liste": n2_liste, "wy": wy, "sammenligning": sammenligning,
+        "forbehold": forbehold, "kryds": kryds, "beslutning": beslutning, "tabel": tabel,
+        "n1_reps": n1_reps, "n2_reps": n2_reps,
+    }
+
+
+def _tal(v, nd: int = 3) -> str:
+    if v is None or (isinstance(v, float) and not np.isfinite(v)):
+        return "—"
+    if isinstance(v, (int, np.integer)):
+        return str(int(v))
+    return f"{v:.{nd}f}".replace(".", ",")
+
+
+def hovedtabel_markdown(resultat: dict) -> str:
+    """Kompakt hovedtabel, 6 rækker — "alle", 2019-2023. Til chatten og toppen af .md."""
+    hele = resultat["tabel"]
+    hele = hele[(hele["side"] == "alle") & (hele["periode"] == "2019-2023")]
+    linjer = ["| buffer | BE | handler_n | middel_R_netto | CI95 | win_rate_pct | "
+             "N1_p50 | N1_p5 | p_FWE | N2_p50 |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
+    for _, r in hele.iterrows():
+        linjer.append(
+            f"| {r['buffer']} | {r['BE']} | {_tal(r['handler_n'])} | "
+            f"{_tal(r['middel_R_netto'], 4)} | "
+            f"[{_tal(r['middel_R_netto_ci95_lo'], 4)}; {_tal(r['middel_R_netto_ci95_hi'], 4)}] | "
+            f"{_tal(r['win_rate_pct_netto'], 1)} | {_tal(r['N1_middel_R_netto_p50'], 4)} | "
+            f"{_tal(r['N1_middel_R_netto_p5'], 4)} | {_tal(r['p_FWE'], 4)} | "
+            f"{_tal(r['N2_middel_R_netto_p50'], 4)} |")
+    return "\n".join(linjer) + "\n"
+
+
+def sammenligning_markdown(samm: pd.DataFrame) -> str:
+    linjer = ["| buffer | BE | zoner_n (kerne/N1_p50) | beroeringer_n (kerne/N1_p50) | "
+             "handler_n (kerne/N1_p50) | ugyldig_foer_aktiv_pct (kerne/N1_p50) |",
+             "|---|---|---|---|---|---|"]
+    for _, r in samm.iterrows():
+        linjer.append(
+            f"| {r['buffer']} | {r['BE']} | "
+            f"{_tal(r['kerne_zoner_n'])}/{_tal(r['N1_zoner_n_p50'], 1)} | "
+            f"{_tal(r['kerne_beroeringer_n'])}/{_tal(r['N1_beroeringer_n_p50'], 1)} | "
+            f"{_tal(r['kerne_handler_n'])}/{_tal(r['N1_handler_n_p50'], 1)} | "
+            f"{_tal(r['kerne_ugyldig_foer_aktiv_pct'], 1)}/"
+            f"{_tal(r['N1_ugyldig_foer_aktiv_pct_p50'], 1)} |")
+    return "\n".join(linjer) + "\n"
+
+
+def skriv_trin_a_md(resultat: dict, meta: dict) -> str:
+    kryds = resultat["kryds"]
+    b = resultat["beslutning"]
+    samm = resultat["sammenligning"]
+    dele = [
+        "# B4 kandidat 1 — trin A: edge-test af kernen\n",
+        f"Kørt {meta['koert_utc']} UTC fra commit `{meta['head'][:7]}`, med modul, tests og "
+        f"præregistrering committet og uændrede. Præregistrering `{_rel(PREREG)}` "
+        f"(commit `{meta['commits'][_rel(PREREG)][:7]}`). Kode `{_rel(Path(__file__))}` "
+        f"(commit `{meta['commits'][_rel(Path(__file__))][:7]}`).\n",
+        f"Serie: MNQ.v.0 ohlcv-1m gennem `data.holdout.load_in_sample`, "
+        f"{MNQ_START.date()} → {(TRIN_A_SLUT - pd.Timedelta(days=1)).date()}. "
+        f"{meta['n_1m']} 1m-barer → {meta['n_15m']} 15m-barer. 6 varianter. "
+        f"N1: {resultat['n1_reps']} gentagelser. N2: {resultat['n2_reps']} gentagelser "
+        f"(FORELØBIG, §5 angiver intet R for N2 — se koden).\n",
+        "**Regressionstjek: OK**, `b4_k1_optaelling_v2.csv` gengivet byte for byte fra "
+        "kerne v2 på NQ, uændret modul.\n",
+        "## Hovedtabel — alle, 2019-2023\n",
+        "middel_R_netto med t-CI95 i kantparentes. N1_p50/N1_p5 er den variants egen "
+        "fordeling over N1-gentagelserne (ikke maks-fordelingen). p_FWE står kun på den "
+        "observerede bedste variant — Westfall-Young beskytter valget af den bedste.\n",
+        hovedtabel_markdown(resultat),
+        "## N1 mod kernen — §5's obligatoriske sammenligning\n",
+        "Median over N1-gentagelserne, holdt op mod kernens egne tal, pr. variant.\n",
+        sammenligning_markdown(samm),
+    ]
+    if resultat["forbehold"]:
+        dele.append(
+            "**Forbehold, §5:** N1's handler_n er under 30% af kernens for " +
+            ", ".join(f"{v[0]}/{v[1]}" for v in resultat["forbehold"]) +
+            " — fortolkningen af disse varianters N1-sammenligning skal læses med det "
+            "in mente.\n")
+    else:
+        dele.append("N1's handler_n er ≥ 30% af kernens for alle 6 varianter — intet "
+                    "forbehold udløst.\n")
+    dele += [
+        "## Krydstjek mod NQ — antagelse (A), ikke en variant\n",
+        f"MNQ, kerne v2, delperioden {MNQ_START.date()} → "
+        f"{(TRIN_A_SLUT - pd.Timedelta(days=1)).date()}, buffer 10%:\n",
+        "| | dage_med_signal_n | signaler_n |\n|---|---|---|\n"
+        f"| MNQ, procentreglen (k1's `signal`) | {kryds['dage_med_signal_procentregel_n']} | "
+        f"{kryds['signaler_procentregel_n']} |\n"
+        f"| MNQ, dollarloftet (det trin A handler) | {kryds['dage_med_signal_dollarloft_n']} | "
+        f"{kryds['signaler_dollarloft_n']} |\n"
+        f"| NQ, reference ({kryds['nq_periode']}) | {kryds['nq_dage_med_signal_n']} | "
+        f"{kryds['nq_signaler_n']} |\n",
+        "De to MNQ-tal er ikke ens, og det er ikke en regressionsfejl — §4d.\n",
+        "## Beslutningsreglen, §7, anvendt mekanisk\n",
+        f"Bedste variant: **{b['variant'][0]}/{b['variant'][1]}**. "
+        f"middel netto-R = {_tal(b['middel_R_netto'], 4)} R "
+        f"(CI95 [{_tal(b['ci_lo'], 4)}; {_tal(b['ci_hi'], 4)}]). "
+        f"p_FWE = {_tal(b['p_fwe'], 4)}. N1's median = {_tal(b['n1_median'], 4)}, "
+        f"N1's 5%-fraktil = {_tal(b['n1_p5'], 4)}.\n",
+        (f"CI'et krydser en grænse: uafgjort, laveste kategori gælder: **{b['kategori']}**.\n"
+         if b["uafgjort"] else f"Kategori: **{b['kategori']}**.\n"),
+        "## Efter kørslen — §10\n",
+        "Stop. Ingen ændring af definitioner, ingen forslag til forbedringer. Resultatet "
+        "læses sammen med Mads.\n",
+        f"Alle tal, alle varianter × side × år: `{OUT.name}/b4_k1_trinA.csv`.\n",
+    ]
+    return "\n".join(dele)
+
+
+def _rel(sti: Path) -> str:
+    return Path(sti).resolve().relative_to(ROOT.resolve()).as_posix()
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     grp = ap.add_mutually_exclusive_group(required=True)
@@ -627,6 +1101,11 @@ def main(argv: list[str] | None = None) -> None:
     grp.add_argument("--n1-tidsmaaling", type=int, nargs="?", const=5, default=None,
                      metavar="N", help="N rigtige N1-gentagelser (standard 5), "
                      "parallelliseret over kernerne")
+    grp.add_argument("--koer", action="store_true",
+                     help="§6-§8: selve trin A-kørslen. R=500 N1-gentagelser, "
+                     "N2_GENTAGELSER N2-gentagelser. Skriver b4_k1_trinA.md/.csv")
+    ap.add_argument("--n1-reps", type=int, default=500)
+    ap.add_argument("--n2-reps", type=int, default=N2_GENTAGELSER)
     args = ap.parse_args(argv)
 
     if args.regressionstjek:
@@ -653,6 +1132,23 @@ def main(argv: list[str] | None = None) -> None:
              f"paralleliseret over {t['n_workere']} arbejdere "
              f"{t['forventet_total_s_paralleliseret']:.1f} s "
              f"({t['forventet_total_s_paralleliseret'] / 3600:.2f} timer)")
+        return
+
+    if args.koer:
+        commits = k1.committede((Path(__file__).resolve(), PREREG))
+        resultat = koer_trin_a(n1_reps=args.n1_reps, n2_reps=args.n2_reps)
+        meta = {
+            "koert_utc": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M"),
+            "head": _git("rev-parse", "HEAD").stdout.strip(),
+            "commits": commits,
+            "n_1m": len(resultat["df"]), "n_15m": len(resultat["bars"]),
+        }
+        md = skriv_trin_a_md(resultat, meta)
+        OUT.mkdir(parents=True, exist_ok=True)
+        (OUT / "b4_k1_trinA.md").write_text(md, encoding="utf-8")
+        resultat["tabel"].to_csv(OUT / "b4_k1_trinA.csv", index=False)
+        print(md)
+        print(f"skrev {OUT / 'b4_k1_trinA.md'} og .csv")
         return
 
     t = tidsmaaling()
