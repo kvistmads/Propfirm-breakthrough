@@ -124,7 +124,7 @@ ikke snævres ind til de filtre dette mønster peger på.
 ## 8. Rettelser til rapporten
 
 - Rapporten siger at `b4_k1_trinA_laesning.md` er skrevet af overblikssessionen. **Det er
-  forkert.** Forfatteren er ukendt; se noten øverst i den fil.
+  forkert.** Code-sessionen skrev den selv (bekræftet af Mads); se noten øverst i den fil.
 - Rapporten aflæser hul B på CI'ets nedre grænse. Hul B er defineret på punktestimatet.
   Konklusionen bliver den samme gennem §7's CI-klausul.
 - Rapporten mangler "holder"-målet og CI på forskellen mellem demand og supply. Begge er

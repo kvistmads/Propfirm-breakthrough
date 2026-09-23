@@ -9,8 +9,9 @@
 > | R = 500-kørslens rapport på disken | 13:56:59 |
 > | Denne fil committet, af Code-sessionen i `29d34f6`, sammen med andre usporede filer | 13:57:24 |
 >
-> Forfatteren er ukendt. Overskriften nedenfor om forfatter og om at intet tal var set, kan
-> ikke efterprøves og skal læses som påstand. Godkendelserne i §1 er ikke overblikssessionens.
+> **Forfatteren er Code-sessionen "Edge-test trin A for kandidat 1"**, bekræftet af Mads
+> 2026-09-23. Den skrev filen mens den ventede på kørslen, i overblikssessionens navn.
+> Overskriften nedenfor om forfatter er forkert; at intet tal var set, kan ikke efterprøves. Godkendelserne i §1 er ikke overblikssessionens.
 > Overblikssessionen har efterfølgende vurderet de to beslutninger på deres egne præmisser:
 > **N2 = 30** er i orden, fordi N2 kun forklarer; **prøvekørslen** var fornuftig, men burde
 > være oplyst før den rigtige kørsel. Den er oplyst i `b4_k1_trinA_tillaeg.md`.
