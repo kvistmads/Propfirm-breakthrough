@@ -71,7 +71,7 @@ Aftalt med Mads 2026-09-22. Skrevet ud her, så de kan efterprøves.
 
 | nr | regel | bemærkning |
 |---|---|---|
-| 1 | Limitordren på E fyldes når prisen **handler igennem E med mindst ét tick**, ikke ved berøring af E | Konservativt. Mads accepterede, med det forbehold at en ren berøring i virkeligheden ofte ville fylde |
+| 1 | Limitordren på E fyldes når prisen **handler igennem E med mindst ét tick**, ikke ved berøring af E | Det er et køspørgsmål, ikke et datapræcisionsspørgsmål — se 4c |
 | 2 | Der fyldes til **E**, aldrig bedre | Ingen positiv slippage, heller ikke ved gap forbi E |
 | 3 | Rækkefølgen inde i en 15m-bar afgøres på **1m-serien**, ikke med en antagelse | Vi har 1m-data. Den bruges |
 | 4 | Rammes stop og mål inde i **samme 1m-bar**, antages **stoppet ramt først** | Kun her bruges worst case |
@@ -94,7 +94,28 @@ Aftalt med Mads 2026-09-22. Skrevet ud her, så de kan efterprøves.
   handel: højst 1 handel pr. dag. I BE-varianterne kan der blive 2. **Antal handler
   rapporteres pr. variant**, fordi n dermed ikke er ens.
 
-### 4c. Sizing, uændret fra PRD §3c
+### 4c. Hvorfor gennemhandling og ikke berøring
+
+Rører prisen præcis E og vender, **ved vi at der blev handlet på E, men ikke om vores ordre
+nåede frem i køen.** På et givet prisniveau ligger ordrerne i FIFO-kø, og en berøring fylder
+kun dem der står forrest. Handler prisen derimod ét tick igennem E, er hele køen på E
+ryddet, og vi ved med sikkerhed at vi blev fyldt. **Finere data løser det ikke** — heller
+ikke tick-data. Det ville kræve fuld ordrebog (MBO) *plus* vores egen køplacering, som
+afhænger af hvornår ordren blev lagt.
+
+Imod reglen taler at vores ordre lægges når zonen aktiveres, ofte timer før berøringen
+(median 1,75 timer, optælling 2). Vi ville altså typisk stå **forrest** i køen, ikke bagest,
+og berøringsfyldningen ville i virkeligheden ofte gå igennem. Reglen koster derfor rigtige
+handler.
+
+**Derfor måles prisen.** Rapporten opgør `strejf_uden_gennemhandling_n` og dertil
+kontrafaktisk `strejf_hvis_fyldt_middel_R_netto` og `strejf_hvis_fyldt_win_rate_pct_netto`:
+hvad de strejfede handler ville have givet, hvis de var fyldt til E og kørt gennem samme
+maskineri. **Det er en rapporteret diagnose, ikke en variant, og den indgår ikke i
+beslutningsreglen i §7.** Bruges tallet senere til at ændre fyldningsreglen, tæller den
+ændring som en variant og lægges til N.
+
+### 4d. Sizing, uændret fra PRD §3c
 
 `kontrakter = floor(250 / (risiko_pt × 2))`, rundet ned. Risiko = E − low = 1,1 × H med
 buffer, H uden. Stoploft: risiko ≤ 0,429% af prisen. Zoner over loftet handles ikke.
@@ -180,6 +201,7 @@ Pr. variant (6 rækker), plus demand og supply hver for sig, plus pr. år:
 | signaler_sprunget_over_position_n | berøringer afvist fordi en position var åben |
 | signaler_sprunget_over_dagslukket_n | berøringer afvist af disciplinreglen |
 | strejf_uden_gennemhandling_n | berøringer hvor prisen ramte E men ikke handlede igennem — regel 1's pris |
+| strejf_hvis_fyldt_middel_R_netto · _win_rate_pct_netto | kontrafaktisk udfald af de strejfede, §4c. Diagnose, afgør intet |
 | risiko_pt_p10/p50/p90 · kontrakter_p10/p50/p90 | som optælling 2 |
 | omk_R_netto_p50 · be_WR_pct_netto_p50 | |
 | N1_middel_R_netto_p5/p50/p95 · p_FWE | nulmodellen |
