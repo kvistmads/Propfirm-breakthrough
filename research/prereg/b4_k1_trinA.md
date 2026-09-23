@@ -148,6 +148,7 @@ kolonner obligatoriske **pr. år**, ikke kun samlet:
 | omk_R_netto_p50 · be_WR_pct_netto_p50 | break-even flytter sig mellem årene |
 | kontrakter_p50/p90/maks | positionsloftet på $50K er **50 mikroer** (`REGLER_VERIFICERET.md` §90). Det binder næppe, men `kontrakter_maks` skal stå, så vi kan se det |
 | afvist_kontrakter_nul_n | zoner afvist fordi risikoen oversteg $250 pr. kontrakt |
+| omk_R_netto_p90 · handler_be_WR_over_50_pct_n | den tynde hale. Loftet på 50 mikroer bider ved `risiko_pt < 2,5` point, og dér er `omk_R` allerede over 0,5, altså en break-even win rate over 50%. Sådanne handler kan ikke vinde på 2:1 uanset kernen. De **filtreres ikke** — et mindstekrav til zonehøjde ville være en variant og hører til trin 2 — men de skal være synlige |
 
 **Positionsloftet bindes, og det er nyt — tilføjet 2026-09-23, før kørslen.** Målingen
 viser `kontrakter_maks` = 113 (buffer 10%) og 125 (buffer 0), altså over Topsteps loft på
