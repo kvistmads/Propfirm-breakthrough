@@ -150,3 +150,14 @@ Optællingerne ser ikke på udfald og lægger intet til tælleren.
 **Trin A — resultat, 2026-09-23** (`research/output/b4_k1_trinA_laest.md`): bedste variant buffer 0 / ingen BE, middel_R_netto 0,095 [0,010; 0,180], **p_FWE 0,15** mod N1. Ikke skelnelig fra tilfældigt placerede zoner. BE hjælper ikke; bufferen er uafgjort. Handling: trin 2. N = 6. **Efter motorrettelsen** (`research/output/b4_k1_motorrettelse.md`): kernen er **negativ netto i alle 6 varianter** (−0,004 til −0,046 R), og retesten holder **50-51%**, ikke 90%. Fyldningsbaren havde givet 0,06-0,13 R for meget.
 
 **Trin A først:** kernen v2 med BE (ingen / 1,0R / 1,2R) × buffer (10% / 0%) = 6 varianter, faktor 1,50× mod N = 3. Filtersøgningen er et eget, senere trin med egen præregistrering. Præregistreret 2026-09-23 i `research/prereg/b4_k1_trinA.md`: serien er **MNQ.v.0 2019-05-06 til 2023-12-31** (1.173 RTH-dage), nulmodellen er N1 (tilfældig dannelsestid, 500 gentagelser, Westfall-Young maks-statistik), fyldningsreglen er gennemhandling med ét tick med rækkefølgen inde i baren afgjort på 1m-serien, og det afgørende mål er middel netto-R pr. handel, ikke win rate.
+
+### Trin 2 — aftalt 2026-09-23, før optællingen
+
+| emne | beslutning |
+|---|---|
+| Hvad testes | Videoens egen påstand: jo flere kriterier, jo bedre (16:00). Score 0-7 pr. zone. Hovedtest: stiger middel netto-R med scoren? Varianter: brud på struktur alene og tærskler på scoren, fastlagt efter optællingen |
+| BE | +1,2R, fast, én version. Mads' 60%-regel |
+| Buffer | 10%, fast, én version. Mads' regel |
+| Spor | A: 15m med 1h. B: 5m med 15m (videoens eksempel). B går kun videre hvis omkostningerne tillader det, besluttet på udfaldsfri tal |
+| Definitioner | `research/prereg/b4_k1_trin2_optaelling.md` §3 |
+| **Stopregel** | **Stiger middel netto-R ikke med scoren, parkeres kandidat 1, og kandidat 2 findes.** Ingen redningsforsøg |
