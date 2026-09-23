@@ -71,6 +71,7 @@ from research.stats import breakeven_win_rate, mean_ci_t, wilson_interval  # noq
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "research" / "output"
 PREREG = ROOT / "research" / "prereg" / "b4_k1_trinA.md"
+PREREG_MOTOR = ROOT / "research" / "prereg" / "b4_k1_motorrettelse.md"
 
 MNQ = "MNQ.v.0"
 MNQ_START = pd.Timestamp("2019-05-06", tz="UTC")
@@ -184,18 +185,33 @@ def flad_tid_utc(et_tidspunkt: pd.Timestamp) -> pd.Timestamp:
 
 def simuler_handel(h: np.ndarray, l: np.ndarray, c: np.ndarray, entry_i: int,
                    entry_pris: float, demand: bool, risiko_pt: float,
-                   be_r: float | None, cutoff_i: int, n: int) -> tuple[str, float, int]:
-    """Fra fyldningsbaren og frem, 1m-bar for 1m-bar. Returnerer (udfald, R_brutto, exit_i).
+                   be_r: float | None, cutoff_i: int, n: int,
+                   ret_fyldningsbar: bool = True) -> tuple[str, float, int, bool]:
+    """Fra fyldningsbaren og frem, 1m-bar for 1m-bar. Returnerer (udfald, R_brutto,
+    exit_i, holder).
 
     ``cutoff_i`` er positionen for 14:50 CT-fladten (ekskl.), ``n`` seriens længde —
     løber vi ud over serien, er handlen censureret ved in-sample-slut, ikke tidsexit.
+
+    **Motorrettelse 1** (``research/prereg/b4_k1_motorrettelse.md``): i fyldningsbaren
+    (``entry_i``) kan kun stoppet rammes — mål, BE-trigger og +1R (til ``holder``)
+    tjekkes først fra næste 1m-bar, ``ret_fyldningsbar=True`` (standard, den rettede
+    motor). ``ret_fyldningsbar=False`` er kun til før/efter-målingen: den gamle,
+    ukorrigerede opførsel, hvor hele fyldningsbarens high/low blev tjekket mod alt.
+
+    ``holder``: +1R nået før stoppet, fyldningsbaren undtaget (motorrettelse 3). Mål
+    indebærer altid holder (2R kan ikke nås uden at passere 1R i samme eller en tidligere
+    bar). Rammes +1R og stoppet i samme 1m-bar, gælder samme worst case som regel 4:
+    stoppet antages ramt først, og den bar tæller ikke selv med i holder.
     """
     maal = entry_pris + RR * risiko_pt if demand else entry_pris - RR * risiko_pt
     stop_niveau = entry_pris - risiko_pt if demand else entry_pris + risiko_pt
+    en_r_niveau = entry_pris + risiko_pt if demand else entry_pris - risiko_pt
     be_trigger = None
     if be_r is not None:
         be_trigger = entry_pris + be_r * risiko_pt if demand else entry_pris - be_r * risiko_pt
     be_armet = False
+    holder = False
     graense = min(cutoff_i, n)
     i = entry_i
     while i < graense:
@@ -206,10 +222,16 @@ def simuler_handel(h: np.ndarray, l: np.ndarray, c: np.ndarray, entry_i: int,
             udfald = BE_UDFALD if be_armet else STOP
             eksekvering = stop_niveau - SLIP_PT if demand else stop_niveau + SLIP_PT
             r = ((eksekvering - entry_pris) if demand else (entry_pris - eksekvering)) / risiko_pt
-            return udfald, r, i
+            return udfald, r, i, holder
+        # Motorrettelse 1: fyldningsbaren tjekkes kun for stoppet ovenfor.
+        if ret_fyldningsbar and i == entry_i:
+            i += 1
+            continue
         maal_ramt = (hi >= maal) if demand else (lo <= maal)
         if maal_ramt:
-            return MAAL, RR, i
+            return MAAL, RR, i, True
+        if (hi >= en_r_niveau) if demand else (lo <= en_r_niveau):
+            holder = True
         if be_trigger is not None and not be_armet:
             trig = (hi >= be_trigger) if demand else (lo <= be_trigger)
             if trig:
@@ -220,14 +242,15 @@ def simuler_handel(h: np.ndarray, l: np.ndarray, c: np.ndarray, entry_i: int,
     eksekvering = c[sidste_i]
     r = ((eksekvering - entry_pris) if demand else (entry_pris - eksekvering)) / risiko_pt
     udfald = CENSURERET if graense == n else TIDSEXIT
-    return udfald, r, sidste_i
+    return udfald, r, sidste_i, holder
 
 
 # ---------------------------------------------------------------------------
 # Dagens gennemløb, §4b — fyldningen og disciplinreglerne
 # ---------------------------------------------------------------------------
 
-def handler_for_variant(df_1m: pd.DataFrame, zoner: pd.DataFrame, be_r: float | None
+def handler_for_variant(df_1m: pd.DataFrame, zoner: pd.DataFrame, be_r: float | None,
+                        ret_fyldningsbar: bool = True
                         ) -> tuple[pd.DataFrame, dict, pd.DataFrame]:
     """Alle handler for én BE-variant. ``zoner`` er kerne v2 (klassificeret, med
     ``sizing_ekte``-kolonnerne) for én buffer-variant.
@@ -242,6 +265,10 @@ def handler_for_variant(df_1m: pd.DataFrame, zoner: pd.DataFrame, be_r: float | 
     viste at ``itertuples()`` på ``zoner``'s brede tabel (mange kolonner, deriblandt en
     Arrow-baseret strengkolonne) dominerede tiden: >70% af én kørsel gik i pandas' egen
     rækkeopbygning, ikke i handelslogikken. Samme rækkefølge, samme betingelser, samme tal.
+
+    ``ret_fyldningsbar`` sendes videre til ``simuler_handel`` — standard er den rettede
+    motor (motorrettelse 1). ``False`` er kun til før/efter-målingen i
+    ``research/prereg/b4_k1_motorrettelse.md``.
     """
     times = df_1m.index
     h = df_1m["high"].to_numpy(dtype=float)
@@ -292,26 +319,27 @@ def handler_for_variant(df_1m: pd.DataFrame, zoner: pd.DataFrame, be_r: float | 
                 if strejf_maske.any():
                     j = i0 + int(np.argmax(strejf_maske))
                     cutoff_i = int(times.searchsorted(flad_tid_utc(times[j])))
-                    udfald, r_brutto, _ = simuler_handel(
-                        h, l, c, j, E, demand, risiko_pt, be_r, cutoff_i, n)
+                    udfald, r_brutto, _, holder = simuler_handel(
+                        h, l, c, j, E, demand, risiko_pt, be_r, cutoff_i, n,
+                        ret_fyldningsbar)
                     strejf_rows.append({
                         "dag": dag_arr[k], "side": side_arr[k], "basis_i": basis_i_arr[k],
                         "udfald": udfald, "R_brutto": r_brutto,
-                        "R_netto": r_brutto - omk_R_netto,
+                        "R_netto": r_brutto - omk_R_netto, "holder": holder,
                     })
                 continue
             fyld_i = i0 + int(np.argmax(gennem))
             fyld_tid = times[fyld_i]
             cutoff_i = int(times.searchsorted(flad_tid_utc(fyld_tid)))
-            udfald, r_brutto, exit_i = simuler_handel(
-                h, l, c, fyld_i, E, demand, risiko_pt, be_r, cutoff_i, n)
+            udfald, r_brutto, exit_i, holder = simuler_handel(
+                h, l, c, fyld_i, E, demand, risiko_pt, be_r, cutoff_i, n, ret_fyldningsbar)
             r_netto = r_brutto - omk_R_netto
             rows.append({
                 "dag": dag_arr[k], "side": side_arr[k], "basis_i": basis_i_arr[k],
                 "fyld_tid": fyld_tid, "exit_tid": times[exit_i],
                 "udfald": udfald, "R_brutto": r_brutto, "R_netto": r_netto,
                 "risiko_pt": risiko_pt, "kontrakter": kontrakter_arr[k],
-                "omk_R_netto": omk_R_netto,
+                "omk_R_netto": omk_R_netto, "holder": holder,
             })
             if udfald == BE_UDFALD:
                 be_count += 1
@@ -323,19 +351,23 @@ def handler_for_variant(df_1m: pd.DataFrame, zoner: pd.DataFrame, be_r: float | 
 
     handler = pd.DataFrame(rows, columns=["dag", "side", "basis_i", "fyld_tid", "exit_tid",
                                           "udfald", "R_brutto", "R_netto", "risiko_pt",
-                                          "kontrakter", "omk_R_netto"])
+                                          "kontrakter", "omk_R_netto", "holder"])
     strejf = pd.DataFrame(strejf_rows, columns=["dag", "side", "basis_i", "udfald",
-                                                "R_brutto", "R_netto"])
+                                                "R_brutto", "R_netto", "holder"])
     return handler, tael, strejf
 
 
-def simuler_alle_varianter(df_1m: pd.DataFrame, bars_15m: pd.DataFrame) -> dict:
-    """Alle 6 varianter, §3: buffer × BE. Nøgle er (buffer_navn, be_navn)."""
+def simuler_alle_varianter(df_1m: pd.DataFrame, bars_15m: pd.DataFrame,
+                           ret_fyldningsbar: bool = True) -> dict:
+    """Alle 6 varianter, §3: buffer × BE. Nøgle er (buffer_navn, be_navn).
+
+    ``ret_fyldningsbar=False`` er kun til motorrettelsens før/efter-måling.
+    """
     ud = {}
     for buffer_navn, buffer in BUFFER_VARIANTER.items():
         zoner = sizing_ekte(k1.zoner_v2(bars_15m, buffer))
         for be_navn, be_r in BE_VARIANTER.items():
-            handler, tael, strejf = handler_for_variant(df_1m, zoner, be_r)
+            handler, tael, strejf = handler_for_variant(df_1m, zoner, be_r, ret_fyldningsbar)
             ud[(buffer_navn, be_navn)] = {"handler": handler, "tael": tael,
                                           "strejf": strejf, "zoner": zoner}
     return ud
@@ -479,6 +511,11 @@ def find_zoner_n2(bars: pd.DataFrame, ekte: pd.DataFrame,
     er kerne v2's egne regler, uændrede; kun E flyttes. ``ekte`` er
     ``b4_k1_optaelling.find_zoner_v2``'s egen tabel for den buffer-variant der forklares
     (E, zone_high, zone_low, basis_i, udbrud_i er dens rigtige, urørte værdier).
+
+    **Motorrettelse 2:** hele zonen flyttes med samme forskydning — ``zone_high`` og
+    ``zone_low`` med, ikke kun ``E``. Ellers ændres stopafstanden (E − zone_low for
+    demand) med forskydningen selv, og kan blive negativ. H (zone_high − zone_low) og
+    dermed risikoen er uændret; kun zonens plads på prisaksen flytter sig.
     """
     o, h, l, c = (bars[k].to_numpy(dtype=float) for k in ("open", "high", "low", "close"))
     n = len(bars)
@@ -493,10 +530,11 @@ def find_zoner_n2(bars: pd.DataFrame, ekte: pd.DataFrame,
         H = row.zone_high - row.zone_low
         fortegn = 1.0 if rng.random() < 0.5 else -1.0
         magnitude = rng.uniform(0.5 * H, 3.0 * H)
-        E_n2 = row.E + fortegn * magnitude
+        forskydning = fortegn * magnitude
+        E_n2 = row.E + forskydning
         b, u = int(row.basis_i), int(row.udbrud_i)
         k = int(naeste_skift[b])
-        zone_high, zone_low = row.zone_high, row.zone_low
+        zone_high, zone_low = row.zone_high + forskydning, row.zone_low + forskydning
         aktiv = -1
         if k <= u:
             status, slut = k1.KONTRAKTSKIFT, k
@@ -582,6 +620,10 @@ def _noegletal(handler: pd.DataFrame, strejf: pd.DataFrame, zoner: pd.DataFrame,
         lo, hi = wilson_interval(vundet, len(handler))
         row["win_rate_pct_netto"] = 100 * vundet / len(handler)
         row["win_rate_ci95_lo_pct"], row["win_rate_ci95_hi_pct"] = 100 * lo, 100 * hi
+        holder_n = int(handler["holder"].sum())
+        holder_lo, holder_hi = wilson_interval(holder_n, len(handler))
+        row["holder_pct"] = 100 * holder_n / len(handler)
+        row["holder_ci95_lo_pct"], row["holder_ci95_hi_pct"] = 100 * holder_lo, 100 * holder_hi
         for u in UDFALD:
             row[f"udfald_{u}_pct"] = 100 * int((handler["udfald"] == u).sum()) / len(handler)
         tid = handler.loc[handler["udfald"] == TIDSEXIT, "R_netto"]
@@ -592,7 +634,8 @@ def _noegletal(handler: pd.DataFrame, strejf: pd.DataFrame, zoner: pd.DataFrame,
     else:
         for navn in ("middel_R_brutto", "middel_R_netto", "middel_R_netto_ci95_lo",
                      "middel_R_netto_ci95_hi", "win_rate_pct_netto", "win_rate_ci95_lo_pct",
-                     "win_rate_ci95_hi_pct", "tidsexit_middel_R_netto",
+                     "win_rate_ci95_hi_pct", "holder_pct", "holder_ci95_lo_pct",
+                     "holder_ci95_hi_pct", "tidsexit_middel_R_netto",
                      "handler_pr_dag_middel"):
             row[navn] = float("nan")
         row["dage_med_handel_n"] = 0
@@ -679,6 +722,105 @@ def regressionstjek() -> bool:
         ny.to_csv(sti, index=False)
         return subprocess.run(["cmp", str(sti), str(referencen)],
                               capture_output=True).returncode == 0
+
+
+def motorrettelse_maaling() -> dict:
+    """``research/prereg/b4_k1_motorrettelse.md``: kun kernen, 6 varianter, før og efter
+    de tre motorrettelser. N1 og N2 køres ikke — de kører med den rettede motor i trin 2.
+
+    "Før" er den gamle, ukorrigerede fyldningsbar-opførsel (``ret_fyldningsbar=False``);
+    N2's rettelse (hele zonen flyttes) og "holder" påvirker ikke kernens handler_n/R,
+    så de indgår ikke i før/efter-forskellen — kun rettelse 1 gør.
+    """
+    df = holdout.load_in_sample(MNQ)
+    df = df[(df.index >= MNQ_START) & (df.index < TRIN_A_SLUT)]
+    bars = resample.aggregate(df, k1.BAR_MIN)
+
+    foer = simuler_alle_varianter(df, bars, ret_fyldningsbar=False)
+    efter = simuler_alle_varianter(df, bars, ret_fyldningsbar=True)
+
+    rows = []
+    for v in efter:
+        h_foer, h_efter = foer[v]["handler"], efter[v]["handler"]
+        noegle_foer = noegletal_handler(foer[v])
+        noegle_efter = noegletal_handler(efter[v])
+
+        basis_foer = set(h_foer["basis_i"])
+        basis_efter = set(h_efter["basis_i"])
+        faelles = basis_foer & basis_efter
+        f_idx = h_foer.set_index("basis_i")
+        e_idx = h_efter.set_index("basis_i")
+        ramt = sum(
+            1 for b in faelles
+            if f_idx.loc[b, "udfald"] != e_idx.loc[b, "udfald"]
+            or not np.isclose(f_idx.loc[b, "R_brutto"], e_idx.loc[b, "R_brutto"]))
+
+        rows.append({
+            "buffer": v[0], "BE": v[1],
+            "handler_n_foer": len(h_foer), "handler_n_efter": len(h_efter),
+            "handler_kun_i_foer_n": len(basis_foer - basis_efter),
+            "handler_kun_i_efter_n": len(basis_efter - basis_foer),
+            "middel_R_netto_foer": noegle_foer["middel_R_netto"],
+            "middel_R_netto_efter": noegle_efter["middel_R_netto"],
+            "forskel": noegle_efter["middel_R_netto"] - noegle_foer["middel_R_netto"],
+            "handler_ramt_af_rettelse_1_n": ramt,
+            "holder_pct": noegle_efter["holder_pct"],
+            "holder_ci95_lo_pct": noegle_efter["holder_ci95_lo_pct"],
+            "holder_ci95_hi_pct": noegle_efter["holder_ci95_hi_pct"],
+        })
+    return {"tabel": pd.DataFrame(rows), "foer": foer, "efter": efter,
+           "n_1m": len(df), "n_15m": len(bars)}
+
+
+def hovedtabel_motorrettelse_markdown(tabel: pd.DataFrame) -> str:
+    linjer = ["| buffer | BE | handler_n (før/efter) | middel_R_netto før | efter | "
+             "forskel | ramt af rettelse 1 | holder_pct [CI95] |",
+             "|---|---|---|---|---|---|---|---|"]
+    for _, r in tabel.iterrows():
+        linjer.append(
+            f"| {r['buffer']} | {r['BE']} | {int(r['handler_n_foer'])}/{int(r['handler_n_efter'])} | "
+            f"{_tal(r['middel_R_netto_foer'], 4)} | {_tal(r['middel_R_netto_efter'], 4)} | "
+            f"{_tal(r['forskel'], 4)} | {int(r['handler_ramt_af_rettelse_1_n'])} | "
+            f"{_tal(r['holder_pct'], 1)} [{_tal(r['holder_ci95_lo_pct'], 1)}; "
+            f"{_tal(r['holder_ci95_hi_pct'], 1)}] |")
+    return "\n".join(linjer) + "\n"
+
+
+def skriv_motorrettelse_md(maaling: dict, meta: dict) -> str:
+    tabel = maaling["tabel"]
+    ramt_i_alt = int(tabel["handler_ramt_af_rettelse_1_n"].sum())
+    kun_foer = int(tabel["handler_kun_i_foer_n"].sum())
+    kun_efter = int(tabel["handler_kun_i_efter_n"].sum())
+    forskel_max = tabel["forskel"].abs().max()
+    dele = [
+        "# B4 kandidat 1 — motorrettelse efter trin A\n",
+        f"Kørt {meta['koert_utc']} UTC fra commit `{meta['head'][:7]}` af Code, med modul, "
+        f"tests og præregistrering committet og uændrede. Præregistrering "
+        f"`research/prereg/b4_k1_motorrettelse.md` (commit `{meta['commits'][_rel(PREREG_MOTOR)][:7]}`). "
+        f"Kode `research/b4_k1_trinA.py` (commit "
+        f"`{meta['commits'][_rel(Path(__file__))][:7]}`).\n",
+        f"Serie: MNQ.v.0, samme som trin A. {meta['n_1m']} 1m-barer → {meta['n_15m']} "
+        f"15m-barer. **Kun kernen, 6 varianter. N1 og N2 kørt ikke.**\n",
+        "**Regressionstjek: OK**, `b4_k1_optaelling_v2.csv` gengivet byte for byte fra "
+        "kerne v2 på NQ, uændret modul.\n",
+        "## Tre rettelser\n",
+        "1. Fyldningsbaren: kun stoppet kan rammes der. Mål, BE-trigger og +1R tjekkes "
+        "fra næste 1m-bar. Gælder overalt `simuler_handel` bruges (kerne, N1, N2, strejf).\n",
+        "2. N2: hele zonen (zone_high, zone_low, E) forskydes med samme beløb, så "
+        "stopafstanden bevares.\n",
+        "3. `holder_pct`: andel handler hvor +1R nås før stoppet, fyldningsbaren undtaget. "
+        "Tidsexit tæller som holder hvis +1R blev nået før 21:50. Wilson-CI.\n",
+        "## Målingen — før/efter, kun kernen\n",
+        hovedtabel_motorrettelse_markdown(tabel),
+        f"`handler_ramt_af_rettelse_1_n` i alt: {ramt_i_alt} (samme udfald eller R_brutto "
+        f"før og efter, matchet på zonens `basis_i`, tæller ikke med). Handler der kun "
+        f"findes i én af de to kørsler (dagsdisciplinen kaskaderede): "
+        f"{kun_foer} kun før, {kun_efter} kun efter.\n",
+        f"Største ændring i middel_R_netto blandt de 6 varianter: {_tal(forskel_max, 4)} R.\n",
+        "## Efter kørslen\n",
+        "Stop. Ingen ændring af andet end de tre rettelser.\n",
+    ]
+    return "\n".join(dele)
 
 
 def tidsmaaling() -> dict:
@@ -1104,6 +1246,9 @@ def main(argv: list[str] | None = None) -> None:
     grp.add_argument("--koer", action="store_true",
                      help="§6-§8: selve trin A-kørslen. R=500 N1-gentagelser, "
                      "N2_GENTAGELSER N2-gentagelser. Skriver b4_k1_trinA.md/.csv")
+    grp.add_argument("--motorrettelse", action="store_true",
+                     help="b4_k1_motorrettelse.md: kun kernen, 6 varianter, før/efter "
+                     "de tre motorrettelser. Skriver b4_k1_motorrettelse.md")
     ap.add_argument("--n1-reps", type=int, default=500)
     ap.add_argument("--n2-reps", type=int, default=N2_GENTAGELSER)
     args = ap.parse_args(argv)
@@ -1149,6 +1294,21 @@ def main(argv: list[str] | None = None) -> None:
         resultat["tabel"].to_csv(OUT / "b4_k1_trinA.csv", index=False)
         print(md)
         print(f"skrev {OUT / 'b4_k1_trinA.md'} og .csv")
+        return
+
+    if args.motorrettelse:
+        commits = k1.committede((Path(__file__).resolve(), PREREG_MOTOR))
+        maaling = motorrettelse_maaling()
+        meta = {
+            "koert_utc": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M"),
+            "head": _git("rev-parse", "HEAD").stdout.strip(),
+            "commits": commits,
+        }
+        md = skriv_motorrettelse_md(maaling, meta)
+        OUT.mkdir(parents=True, exist_ok=True)
+        (OUT / "b4_k1_motorrettelse.md").write_text(md, encoding="utf-8")
+        print(md)
+        print(f"skrev {OUT / 'b4_k1_motorrettelse.md'}")
         return
 
     t = tidsmaaling()

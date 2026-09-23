@@ -41,68 +41,133 @@ ENTRY = 100.0
 RISIKO = 10.0            # stop 90, mål 120 for demand; stop 110, mål 80 for supply
 
 
-def _flad(h, l, c, entry_i=0, demand=True, be_r=None, cutoff_i=1000):
+def _flad(h, l, c, entry_i=0, demand=True, be_r=None, cutoff_i=1000, ret_fyldningsbar=True):
     h, l, c = np.asarray(h, float), np.asarray(l, float), np.asarray(c, float)
-    return t.simuler_handel(h, l, c, entry_i, ENTRY, demand, RISIKO, be_r, cutoff_i, len(h))
+    return t.simuler_handel(h, l, c, entry_i, ENTRY, demand, RISIKO, be_r, cutoff_i, len(h),
+                            ret_fyldningsbar)
 
 
 class TestSimulerHandelMaalOgStop:
-    def test_maal_ramt_giver_plus_2R_brutto_uden_slippage(self):
-        udfald, r, i = _flad(h=[105, 121], l=[98, 99], c=[102, 120])
-        assert (udfald, r, i) == (t.MAAL, pytest.approx(2.0), 1)
+    def test_maal_ramt_efter_fyldningsbaren_giver_plus_2R_brutto_uden_slippage(self):
+        udfald, r, i, holder = _flad(h=[105, 121], l=[98, 99], c=[102, 120])
+        assert (udfald, r, i, holder) == (t.MAAL, pytest.approx(2.0), 1, True)
 
-    def test_stop_ramt_traekker_slippage_fra(self):
-        udfald, r, i = _flad(h=[105], l=[89], c=[90])
+    def test_stop_ramt_i_fyldningsbaren_traekker_slippage_fra(self):
+        """Motorrettelse 1: stoppet MÅ ramme i selve fyldningsbaren."""
+        udfald, r, i, holder = _flad(h=[105], l=[89], c=[90])
         forventet = ((90 - t.SLIP_PT) - ENTRY) / RISIKO
-        assert (udfald, i) == (t.STOP, 0)
+        assert (udfald, i, holder) == (t.STOP, 0, False)
         assert r == pytest.approx(forventet)
         assert r < -1.0        # slippage gør tabet værre end -1R
 
     def test_regel_4_begge_ramt_samme_bar_stoppet_vinder(self):
-        udfald, r, i = _flad(h=[125], l=[85], c=[100])
-        assert udfald == t.STOP
+        # bar0: fyldningsbaren, neutral. bar1: både stop og mål er ramt.
+        udfald, r, i, holder = _flad(h=[105, 125], l=[95, 85], c=[102, 100])
+        assert (udfald, i) == (t.STOP, 1)
         assert r == pytest.approx(((90 - t.SLIP_PT) - ENTRY) / RISIKO)
 
     def test_supply_er_spejlvendt(self):
-        udfald, r, i = _flad(h=[110], l=[79], c=[100], demand=False)
-        # mål 80 og stop 110 begge ramt: stoppet vinder (regel 4)
+        udfald, r, i, holder = _flad(h=[105, 110], l=[95, 79], c=[102, 100], demand=False)
+        # mål 80 og stop 110 begge ramt i bar1: stoppet vinder (regel 4)
         assert udfald == t.STOP
         assert r == pytest.approx((ENTRY - (110 + t.SLIP_PT)) / RISIKO)
 
-    def test_supply_maal_alene(self):
-        udfald, r, i = _flad(h=[102], l=[79], c=[80], demand=False)
-        assert (udfald, r) == (t.MAAL, pytest.approx(2.0))
+    def test_supply_maal_alene_efter_fyldningsbaren(self):
+        udfald, r, i, holder = _flad(h=[105, 102], l=[95, 79], c=[102, 80], demand=False)
+        assert (udfald, r, holder) == (t.MAAL, pytest.approx(2.0), True)
 
-    def test_fyldningsbaren_selv_kan_afgoere_handlen(self):
-        """entry_i er selve fyldningsbaren — den skal også tjekkes."""
-        udfald, r, i = _flad(h=[121], l=[99], c=[120])
-        assert (udfald, i) == (t.MAAL, 0)
+    def test_motorrettelse_1_maal_i_fyldningsbaren_taeller_ikke(self):
+        """h=121 rammer målet (120) i selve fyldningsbaren — den rettede motor
+        (standard) ignorerer det, og handlen løber videre (her: ud i tidsexit)."""
+        udfald, r, i, holder = _flad(h=[121], l=[99], c=[120])
+        assert udfald != t.MAAL
+        assert udfald in (t.TIDSEXIT, t.CENSURERET)
+
+    def test_ret_fyldningsbar_false_er_den_gamle_uden_rettelsen(self):
+        """Kun til før/efter-målingen: viser den gamle, ukorrigerede opførsel."""
+        udfald, r, i, holder = _flad(h=[121], l=[99], c=[120], ret_fyldningsbar=False)
+        assert (udfald, i, holder) == (t.MAAL, 0, True)
+
+    def test_motorrettelse_1_be_trigger_i_fyldningsbaren_armerer_ikke(self):
+        """BE-triggeren krydses i fyldningsbaren (h=112 >= 1,0R-trigger 110) — den
+        rettede motor ignorerer det, så stoppet i bar 1 er stadig det oprindelige."""
+        udfald, r, i, holder = _flad(h=[112, 101], l=[95, 89], c=[105, 90], be_r=1.0)
+        assert udfald == t.STOP           # IKKE BE_UDFALD
 
 
 class TestSimulerHandelBE:
     def test_be_armering_flytter_stoppet_til_E_uden_at_lukke_samme_bar(self):
         """Baren der krydser triggeren rammer ikke den (endnu ikke armerede) BE-stop."""
-        # be_trigger ved 1,0R = 110. Bar0 krydser den (h=112) med l=95: intet ramt.
-        udfald, r, i = _flad(h=[112, 101], l=[95, 89], c=[105, 90], be_r=1.0)
-        # Bar1: stop nu E=100. low=89 <= 100 → BE-udgang.
+        # bar0: fyldningsbaren, neutral. be_trigger ved 1,0R = 110.
+        # bar1 krydser den (h=112) med l=95: intet ramt endnu.
+        udfald, r, i, holder = _flad(h=[105, 112, 101], l=[95, 95, 89],
+                                     c=[102, 105, 90], be_r=1.0)
+        # bar2: stop nu E=100. low=89 <= 100 → BE-udgang.
         assert udfald == t.BE_UDFALD
         assert r == pytest.approx((ENTRY - t.SLIP_PT - ENTRY) / RISIKO)
         assert r < 0 and r > -0.1          # "BE er ikke nul", men langt fra -1R
+        assert holder is True              # BE-triggeren (>= 1,0R) indebærer +1R nået
 
     def test_be_armeret_men_fortsaetter_til_maal(self):
-        udfald, r, i = _flad(h=[112, 125], l=[95, 105], c=[105, 122], be_r=1.0)
-        assert (udfald, r) == (t.MAAL, pytest.approx(2.0))
+        udfald, r, i, holder = _flad(h=[105, 112, 125], l=[95, 95, 105],
+                                     c=[102, 105, 122], be_r=1.0)
+        assert (udfald, r, holder) == (t.MAAL, pytest.approx(2.0), True)
 
     def test_ingen_be_variant_bruger_aldrig_be_selvom_triggeren_krydses(self):
         """be_r=None: samme priser som armeringstesten, men her lukker det som stop."""
-        udfald, r, i = _flad(h=[112], l=[89], c=[90], be_r=None)
+        udfald, r, i, holder = _flad(h=[105, 112, 101], l=[95, 95, 89],
+                                     c=[102, 105, 90], be_r=None)
         assert udfald == t.STOP           # ikke BE — variant "ingen" kender ikke BE
         assert r == pytest.approx(((90 - t.SLIP_PT) - ENTRY) / RISIKO)
 
     def test_be_1_2R_trigger_er_stoerre_end_1_0R(self):
         # h=111 krydser 1,0R (110) men ikke 1,2R (112)
-        udfald, r, i = _flad(h=[111, 101], l=[95, 89], c=[105, 90], be_r=1.2)
+        udfald, r, i, holder = _flad(h=[105, 111, 101], l=[95, 95, 89],
+                                     c=[102, 105, 90], be_r=1.2)
         assert udfald == t.STOP           # ikke armeret, så det er det oprindelige stop
+
+
+class TestHolderPct:
+    """Motorrettelse 3: +1R nået før stoppet, fyldningsbaren undtaget."""
+
+    def test_stop_uden_at_naa_1R_er_ikke_holder(self):
+        _, _, _, holder = _flad(h=[105, 105], l=[95, 89], c=[102, 90])
+        assert holder is False
+
+    def test_1R_naaet_foer_stoppet_er_holder(self):
+        # bar1 når +1R (110) uden at ramme noget; bar2 rammer stoppet.
+        _, _, _, holder = _flad(h=[105, 111, 105], l=[95, 100, 89], c=[102, 108, 90])
+        assert holder is True
+
+    def test_1R_og_stoppet_i_samme_bar_er_ikke_holder(self):
+        """Samme worst case som regel 4: nås begge i samme 1m-bar, tæller det ikke
+        som holder — stoppet antages ramt først."""
+        _, _, _, holder = _flad(h=[105, 111], l=[95, 85], c=[102, 90])
+        assert holder is False
+
+    def test_maal_er_altid_holder(self):
+        _, _, _, holder = _flad(h=[105, 121], l=[95, 99], c=[102, 120])
+        assert holder is True
+
+    def test_tidsexit_er_holder_hvis_1R_blev_naaet_foer_cutoff(self):
+        h = [105, 111, 105, 105]
+        l = [95, 100, 95, 95]
+        c = [101, 108, 103, 103]
+        udfald, r, i, holder = _flad(h, l, c, cutoff_i=3)
+        assert udfald == t.TIDSEXIT and holder is True
+
+    def test_tidsexit_er_ikke_holder_hvis_1R_aldrig_blev_naaet(self):
+        h = [105, 105, 105, 105]
+        l = [95, 95, 95, 95]
+        c = [101, 102, 103, 103]
+        udfald, r, i, holder = _flad(h, l, c, cutoff_i=3)
+        assert udfald == t.TIDSEXIT and holder is False
+
+    def test_1R_i_fyldningsbaren_taeller_ikke(self):
+        """Fyldningsbaren er undtaget, jf. motorrettelse 1 og 3 — selv med h langt over
+        1R-niveauet i bar 0."""
+        udfald, r, i, holder = _flad(h=[130], l=[99], c=[105], cutoff_i=1)
+        assert holder is False
 
 
 class TestSimulerHandelTidOgCensurering:
@@ -110,20 +175,20 @@ class TestSimulerHandelTidOgCensurering:
         h = [105, 105, 105, 105]
         l = [95, 95, 95, 95]
         c = [101, 102, 103, 104]
-        udfald, r, i = _flad(h, l, c, cutoff_i=3)
-        assert (udfald, i) == (t.TIDSEXIT, 2)
+        udfald, r, i, holder = _flad(h, l, c, cutoff_i=3)
+        assert (udfald, i, holder) == (t.TIDSEXIT, 2, False)
         assert r == pytest.approx((103 - ENTRY) / RISIKO)
 
     def test_censurering_naar_data_slutter_foer_cutoff(self):
         h = [105, 105, 105]
         l = [95, 95, 95]
         c = [101, 102, 103]
-        udfald, r, i = _flad(h, l, c, cutoff_i=1000)   # cutoff langt ude, data slutter først
+        udfald, r, i, holder = _flad(h, l, c, cutoff_i=1000)   # cutoff langt ude
         assert (udfald, i) == (t.CENSURERET, 2)
         assert r == pytest.approx((103 - ENTRY) / RISIKO)
 
     def test_cutoff_ved_selve_fyldningsbaren_giver_stadig_et_udfald(self):
-        udfald, r, i = _flad(h=[105], l=[95], c=[101], entry_i=0, cutoff_i=0)
+        udfald, r, i, holder = _flad(h=[105], l=[95], c=[101], entry_i=0, cutoff_i=0)
         assert i == 0 and udfald in (t.TIDSEXIT, t.CENSURERET)
 
 
@@ -618,15 +683,42 @@ class TestFindZonerN2:
             "hoejde_pct": 1.0, "over_hul": False,
         }])
 
-    def test_dannelseslys_og_tid_bevares_kun_E_flyttes(self):
+    def test_dannelseslys_og_tid_bevares_hele_zonen_flyttes(self):
+        """Motorrettelse 2: zone_high og zone_low flytter med E, samme forskydning,
+        så H og stopafstanden (E - zone_low for demand) bevares."""
         bars = _bars15(10, start_ct="2023-06-05 09:00")
         ekte = self._ekte_raekke(t.DEMAND, E=10_017.0, zone_low=9_995.0, zone_high=10_015.0)
         rng = np.random.default_rng(0)
         z = t.find_zoner_n2(bars, ekte, rng)
         r = z.iloc[0]
         assert (r["basis_i"], r["udbrud_i"]) == (3, 4)
-        assert (r["zone_high"], r["zone_low"]) == (10_015.0, 9_995.0)
-        assert r["E"] != 10_017.0
+        forskydning = r["E"] - 10_017.0
+        assert forskydning != 0.0
+        assert r["zone_high"] == pytest.approx(10_015.0 + forskydning)
+        assert r["zone_low"] == pytest.approx(9_995.0 + forskydning)
+        assert (r["zone_high"] - r["zone_low"]) == pytest.approx(10_015.0 - 9_995.0)   # H bevares
+        assert (r["E"] - r["zone_low"]) == pytest.approx(10_017.0 - 9_995.0)  # stopafstand bevares
+
+    def test_stopafstanden_kan_ikke_blive_negativ(self):
+        """Før rettelsen kunne et stort negativt skub gøre E - zone_low <= 0. Med hele
+        zonen flyttet er stopafstanden altid den oprindelige, uanset forskydning."""
+        bars = _bars15(10, start_ct="2023-06-05 09:00")
+        ekte = self._ekte_raekke(t.DEMAND, E=10_017.0, zone_low=9_995.0, zone_high=10_015.0)
+        for seed in range(50):
+            z = t.find_zoner_n2(bars, ekte, np.random.default_rng(seed))
+            r = z.iloc[0]
+            assert (r["E"] - r["zone_low"]) == pytest.approx(22.0)
+
+    def test_supply_hele_zonen_flyttes(self):
+        bars = _bars15(10, start_ct="2023-06-05 09:00")
+        ekte = self._ekte_raekke(t.SUPPLY, E=9_983.0, zone_low=9_985.0, zone_high=10_005.0)
+        rng = np.random.default_rng(2)
+        z = t.find_zoner_n2(bars, ekte, rng)
+        r = z.iloc[0]
+        forskydning = r["E"] - 9_983.0
+        assert r["zone_low"] == pytest.approx(9_985.0 + forskydning)
+        assert r["zone_high"] == pytest.approx(10_005.0 + forskydning)
+        assert (r["zone_low"] - r["E"]) == pytest.approx(9_985.0 - 9_983.0)  # stopafstand bevares
 
     def test_forskydningen_er_mellem_0_5H_og_3H_i_begge_retninger(self):
         bars = _bars15(10, start_ct="2023-06-05 09:00")
