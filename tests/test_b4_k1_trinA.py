@@ -417,3 +417,130 @@ def test_seks_varianter_koerer_og_giver_fornuftige_noegletal():
         assert set(res["strejf"]["udfald"]).issubset(set(t.UDFALD))
         handler_i_alt += row["handler_n"]
     assert handler_i_alt > 0
+
+
+# ===========================================================================
+# 5. N1 (FORELØBIG — kun til punkt 4's tidsmåling) — dannelseslyset, §5
+# ===========================================================================
+
+def _bars15(n, start_ct="2023-06-05 09:00") -> pd.DataFrame:
+    """n sammenhængende 15m-barer, flade OHLC — til at teste ugegrænser og geometri."""
+    idx = pd.date_range(_ct(start_ct), periods=n, freq="15min").tz_convert("UTC")
+    return pd.DataFrame({"open": 10_000.0, "high": 10_000.0, "low": 10_000.0,
+                         "close": 10_000.0}, index=idx.rename("time"))
+
+
+class TestUgeId:
+    def test_samme_iso_uge_faar_samme_id(self):
+        idx = pd.DatetimeIndex([_ct("2023-06-05 09:00"),
+                                _ct("2023-06-09 15:00")]).tz_convert("UTC")
+        ud = t._uge_id(idx)
+        assert ud[0] == ud[1]           # mandag og fredag, samme ISO-uge
+
+    def test_naeste_uge_faar_andet_id(self):
+        idx = pd.DatetimeIndex([_ct("2023-06-09 15:00"),
+                                _ct("2023-06-12 09:00")]).tz_convert("UTC")
+        ud = t._uge_id(idx)
+        assert ud[0] != ud[1]
+
+
+class TestN1Dannelseslys:
+    def test_trukket_lys_er_i_samme_uge_som_basislys_og_efterlader_plads(self):
+        bars = _bars15(4 * 96, start_ct="2023-06-05 00:00")     # fire hele uger
+        uge = t._uge_id(bars.index)
+        rng = np.random.default_rng(0)
+        basis_i = np.array([10, 300])
+        b_n1 = t.n1_dannelseslys(bars, basis_i, rng)
+        assert (b_n1 >= 0).all()
+        assert uge[b_n1[0]] == uge[basis_i[0]]
+        assert uge[b_n1[1]] == uge[basis_i[1]]
+        graenser = np.flatnonzero(np.r_[True, uge[1:] != uge[:-1]])
+        graenser = np.r_[graenser, len(bars)]
+        for b in b_n1:
+            gi = np.searchsorted(graenser, b, side="right") - 1
+            assert b + 1 < graenser[gi + 1]      # et "udbrudslys" findes i samme uge
+
+    def test_minus1_naar_ugen_ikke_har_plads_til_endnu_et_lys(self):
+        bars = _bars15(1)                          # basislyset er selv sidste i ugen
+        b_n1 = t.n1_dannelseslys(bars, np.array([0]), np.random.default_rng(0))
+        assert b_n1[0] == -1
+
+    def test_reproducerbar_med_samme_seed(self):
+        bars = _bars15(200, start_ct="2023-06-05 00:00")
+        basis_i = np.array([5, 50, 150])
+        a = t.n1_dannelseslys(bars, basis_i, np.random.default_rng(42))
+        b = t.n1_dannelseslys(bars, basis_i, np.random.default_rng(42))
+        assert (a == b).all()
+
+
+class TestFindZonerN1:
+    def test_demand_bygges_fra_det_trukne_lys_high_med_rigtig_H(self):
+        bars = _bars15(10, start_ct="2023-06-05 09:00")
+        bars.loc[bars.index[3], ["open", "high", "low", "close"]] = \
+            [10_050.0, 10_060.0, 10_045.0, 10_050.0]
+        z = t.find_zoner_n1(bars, side=np.array([t.DEMAND]), H=np.array([20.0]),
+                            b_n1=np.array([3]), buffer=Fraction(0))
+        assert len(z) == 1
+        r = z.iloc[0]
+        assert (r["zone_high"], r["zone_low"]) == (10_060.0, 10_040.0)   # high, high − H
+        assert r["side"] == t.DEMAND and r["basis_i"] == 3
+
+    def test_supply_bygges_fra_det_trukne_lys_low_med_rigtig_H(self):
+        bars = _bars15(10, start_ct="2023-06-05 09:00")
+        bars.loc[bars.index[3], ["open", "high", "low", "close"]] = \
+            [9_950.0, 9_955.0, 9_940.0, 9_950.0]
+        z = t.find_zoner_n1(bars, side=np.array([t.SUPPLY]), H=np.array([20.0]),
+                            b_n1=np.array([3]), buffer=Fraction(0))
+        r = z.iloc[0]
+        assert (r["zone_high"], r["zone_low"]) == (9_960.0, 9_940.0)     # low + H, low
+
+    def test_minus1_springes_over(self):
+        bars = _bars15(10)
+        z = t.find_zoner_n1(bars, side=np.array([t.DEMAND, t.SUPPLY]),
+                            H=np.array([20.0, 20.0]), b_n1=np.array([-1, 3]),
+                            buffer=Fraction(0))
+        assert len(z) == 1 and z.iloc[0]["basis_i"] == 3
+
+    def test_klassificer_v2_genbruges_uaendret_paa_n1_zoner(self):
+        """Kerne v2's egen forløbslogik (afprøvet i test_b4_k1_optaelling.py) skal
+        virke uændret på N1's zoner — den kaldes direkte, ikke genskrevet her."""
+        bars = _bars15(20, start_ct="2023-06-14 09:00")
+        b = 3
+        bars.loc[bars.index[b], ["open", "high", "low", "close"]] = \
+            [10_000.0, 10_020.0, 9_995.0, 10_000.0]
+        bars.loc[bars.index[b + 1], ["open", "high", "low", "close"]] = \
+            [10_022.0, 10_025.0, 10_021.0, 10_022.0]      # aktiverer: low (10.021) > E (10.020)
+        bars.loc[bars.index[b + 2], ["open", "high", "low", "close"]] = \
+            [10_019.0, 10_020.0, 10_018.0, 10_019.0]      # berører: low (10.018) <= E
+        z = t.find_zoner_n1(bars, side=np.array([t.DEMAND]), H=np.array([25.0]),
+                            b_n1=np.array([b]), buffer=Fraction(0))
+        klass = t.k1.klassificer_v2(bars, z, Fraction(0))
+        assert (klass.iloc[0]["status"], klass.iloc[0]["slut_i"]) == ("beroert", b + 2)
+
+
+def test_n1_gentagelse_koerer_og_har_samme_form_som_simuler_alle_varianter():
+    from data import resample
+
+    DAG = "2023-06-14"
+    BASIS_D = (10_010, 10_015, 9_995, 10_000)
+    UDBRUD_D = (10_000, 10_030, 9_998, 10_020)
+    OVER = (10_022, 10_025, 10_020, 10_022)
+    GENNEM = (10_005, 10_006, 9_990, 9_991)
+
+    def _sti(lys15):
+        rows = []
+        for o, h, l, c in lys15:
+            path = np.linspace(o, c, 15)
+            for i, p in enumerate(path):
+                rows.append((p, h if i == 5 else p, l if i == 10 else p, p))
+        return rows
+
+    df_1m = _1m(_sti([BASIS_D, UDBRUD_D, OVER, GENNEM] + [OVER] * 200),
+               start_ct=f"{DAG} 09:00")
+    bars15 = resample.aggregate(df_1m, 15)
+    ekte = t.k1.find_zoner_v2(bars15, t.k1.BUFFER_V2)
+    ud = t.n1_gentagelse(df_1m, bars15, ekte["side"].to_numpy(), ekte["basis_i"].to_numpy(),
+                         (ekte["zone_high"] - ekte["zone_low"]).to_numpy(dtype=float), seed=7)
+    assert len(ud) == 6
+    for navn, row in ud.items():
+        assert row["handler_n"] >= 0

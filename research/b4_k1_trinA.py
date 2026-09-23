@@ -51,9 +51,11 @@ dagen (PRD §3a). Tidsexit er fast klokkeslæt 14:50 CT hver dag (PRD §3, "21:5
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from fractions import Fraction
 from pathlib import Path
 
@@ -220,6 +222,11 @@ def handler_for_variant(df_1m: pd.DataFrame, zoner: pd.DataFrame, be_r: float | 
     ægte kontrakt, §4d. En berøring mens en position er åben, eller efter dagen er
     lukket, springes over og tælles. Fyldes ordren ikke (strejf), regnes en
     kontrafaktisk handel til diagnose, §4c — den ændrer intet i tælling eller stat.
+
+    Kandidaterne læses som rå numpy-arrays, ikke ``DataFrame.itertuples()`` — profilering
+    viste at ``itertuples()`` på ``zoner``'s brede tabel (mange kolonner, deriblandt en
+    Arrow-baseret strengkolonne) dominerede tiden: >70% af én kørsel gik i pandas' egen
+    rækkeopbygning, ikke i handelslogikken. Samme rækkefølge, samme betingelser, samme tal.
     """
     times = df_1m.index
     h = df_1m["high"].to_numpy(dtype=float)
@@ -227,27 +234,39 @@ def handler_for_variant(df_1m: pd.DataFrame, zoner: pd.DataFrame, be_r: float | 
     c = df_1m["close"].to_numpy(dtype=float)
     n = len(df_1m)
 
-    kand = zoner[zoner["i_vindue"] & (zoner["kontrakter_ekte"] >= 1)]
-    kand = kand.sort_values(["dag", "slut_tid", "basis_i"]).reset_index(drop=True)
+    kand = zoner[zoner["i_vindue"].to_numpy(dtype=bool) & (zoner["kontrakter_ekte"] >= 1)]
+    kand = kand.sort_values(["dag", "slut_tid", "basis_i"])
+    dag_arr = kand["dag"].to_numpy()
+    slut_tid_arr = kand["slut_tid"].to_numpy()
+    side_arr = kand["side"].to_numpy()
+    E_arr = kand["E"].to_numpy(dtype=float)
+    risiko_arr = kand["risiko_pt_ekte"].to_numpy(dtype=float)
+    kontrakter_arr = kand["kontrakter_ekte"].to_numpy(dtype=float)
+    omk_arr = kand["omk_R_netto_ekte"].to_numpy(dtype=float)
+    basis_i_arr = kand["basis_i"].to_numpy()
+    m = len(kand)
 
     rows: list[dict] = []
     strejf_rows: list[dict] = []
     tael = {"signaler_sprunget_over_position_n": 0, "signaler_sprunget_over_dagslukket_n": 0}
 
-    for dag, gruppe in kand.groupby("dag", sort=True):
+    graenser = np.r_[np.flatnonzero(np.r_[True, dag_arr[1:] != dag_arr[:-1]]), m]
+    for gi in range(len(graenser) - 1):
         dagslukket = False
         be_count = 0
         fri_fra = None
-        for r in gruppe.itertuples():
-            t = r.slut_tid
+        for k in range(graenser[gi], graenser[gi + 1]):
+            t = slut_tid_arr[k]
             if dagslukket:
                 tael["signaler_sprunget_over_dagslukket_n"] += 1
                 continue
             if fri_fra is not None and t < fri_fra:
                 tael["signaler_sprunget_over_position_n"] += 1
                 continue
-            demand = r.side == DEMAND
-            E = r.E
+            demand = side_arr[k] == DEMAND
+            E = E_arr[k]
+            risiko_pt = risiko_arr[k]
+            omk_R_netto = omk_arr[k]
             i0 = int(times.searchsorted(t))
             i1 = int(times.searchsorted(t + k1.BAR))
             sub_l, sub_h = l[i0:i1], h[i0:i1]
@@ -259,24 +278,25 @@ def handler_for_variant(df_1m: pd.DataFrame, zoner: pd.DataFrame, be_r: float | 
                     j = i0 + int(np.argmax(strejf_maske))
                     cutoff_i = int(times.searchsorted(flad_tid_utc(times[j])))
                     udfald, r_brutto, _ = simuler_handel(
-                        h, l, c, j, E, demand, r.risiko_pt_ekte, be_r, cutoff_i, n)
+                        h, l, c, j, E, demand, risiko_pt, be_r, cutoff_i, n)
                     strejf_rows.append({
-                        "dag": dag, "side": r.side, "basis_i": r.basis_i,
+                        "dag": dag_arr[k], "side": side_arr[k], "basis_i": basis_i_arr[k],
                         "udfald": udfald, "R_brutto": r_brutto,
-                        "R_netto": r_brutto - r.omk_R_netto_ekte,
+                        "R_netto": r_brutto - omk_R_netto,
                     })
                 continue
             fyld_i = i0 + int(np.argmax(gennem))
-            cutoff_i = int(times.searchsorted(flad_tid_utc(times[fyld_i])))
+            fyld_tid = times[fyld_i]
+            cutoff_i = int(times.searchsorted(flad_tid_utc(fyld_tid)))
             udfald, r_brutto, exit_i = simuler_handel(
-                h, l, c, fyld_i, E, demand, r.risiko_pt_ekte, be_r, cutoff_i, n)
-            r_netto = r_brutto - r.omk_R_netto_ekte
+                h, l, c, fyld_i, E, demand, risiko_pt, be_r, cutoff_i, n)
+            r_netto = r_brutto - omk_R_netto
             rows.append({
-                "dag": dag, "side": r.side, "basis_i": r.basis_i,
-                "fyld_tid": times[fyld_i], "exit_tid": times[exit_i],
+                "dag": dag_arr[k], "side": side_arr[k], "basis_i": basis_i_arr[k],
+                "fyld_tid": fyld_tid, "exit_tid": times[exit_i],
                 "udfald": udfald, "R_brutto": r_brutto, "R_netto": r_netto,
-                "risiko_pt": r.risiko_pt_ekte, "kontrakter": r.kontrakter_ekte,
-                "omk_R_netto": r.omk_R_netto_ekte,
+                "risiko_pt": risiko_pt, "kontrakter": kontrakter_arr[k],
+                "omk_R_netto": omk_R_netto,
             })
             if udfald == BE_UDFALD:
                 be_count += 1
@@ -303,6 +323,125 @@ def simuler_alle_varianter(df_1m: pd.DataFrame, bars_15m: pd.DataFrame) -> dict:
             handler, tael, strejf = handler_for_variant(df_1m, zoner, be_r)
             ud[(buffer_navn, be_navn)] = {"handler": handler, "tael": tael,
                                           "strejf": strejf, "zoner": zoner}
+    return ud
+
+
+# ---------------------------------------------------------------------------
+# N1, §5 — FORELØBIG: kun til punkt 4's tidsmåling, ikke selve nulmodellen. Skal
+# gennemgås og testes på egne præmisser, som §5 kræver, før trin 2's rigtige kørsel.
+# ---------------------------------------------------------------------------
+
+def _uge_id(index: pd.DatetimeIndex) -> np.ndarray:
+    """ISO-kalenderuge (år×100+ugenummer) pr. lys — "samme kalenderuge" i §5.
+
+    Implementeringsdetalje §5 ikke fastlægger; ISO-ugen (mandag-søndag) er læsningen
+    her og bør bekræftes før trin 2's rigtige kørsel.
+    """
+    iso = index.isocalendar()
+    return iso["year"].to_numpy() * 100 + iso["week"].to_numpy()
+
+
+def n1_dannelseslys(bars: pd.DataFrame, ekte_basis_i: np.ndarray,
+                    rng: np.random.Generator) -> np.ndarray:
+    """§5: ét tilfældigt 15m-lys i samme kalenderuge som hvert rigtige basislys.
+
+    -1 hvor ugen ikke har plads til et lys efter det trukne (intet "udbrudslys" at
+    aktivere fra). Samme trækning genbruges for begge buffer-varianter i
+    ``find_zoner_n1`` — det er dannelseslyset der flyttes, ikke bufferen.
+    """
+    n = len(bars)
+    uge = _uge_id(bars.index)
+    graenser = np.flatnonzero(np.r_[True, uge[1:] != uge[:-1]])
+    graenser = np.r_[graenser, n]
+    uge_af_lys = np.searchsorted(graenser, np.arange(n), side="right") - 1
+
+    ud = np.full(len(ekte_basis_i), -1, dtype=np.int64)
+    for i, b0 in enumerate(ekte_basis_i):
+        gi = int(uge_af_lys[b0])
+        start, slut = int(graenser[gi]), int(graenser[gi + 1])
+        if slut - start >= 2:
+            ud[i] = rng.integers(start, slut - 1)
+    return ud
+
+
+def find_zoner_n1(bars: pd.DataFrame, side: np.ndarray, H: np.ndarray, b_n1: np.ndarray,
+                  buffer: Fraction) -> pd.DataFrame:
+    """N1's zoner for én buffer-variant, ud fra dannelseslys trukket af ``n1_dannelseslys``.
+
+    Zonens resterende mekanik — aktivering, ugyldig, berøring, kontraktskift — er kerne
+    v2's egne regler (``b4_k1_optaelling.find_zoner_v2``, uændret, ikke rørt), her blot
+    rodfæstet i det trukne lys i stedet for det rigtige basislys. Side og H (den rigtige
+    zones) bevares, som §5 kræver; ``b`` med -1 (ingen plads i ugen) springes over.
+    """
+    o, h, l, c = (bars[k].to_numpy(dtype=float) for k in ("open", "high", "low", "close"))
+    n = len(bars)
+    iid = (bars["instrument_id"].to_numpy() if "instrument_id" in bars.columns
+           else np.zeros(n, dtype=np.int64))
+    skift = np.flatnonzero(iid[1:] != iid[:-1]) + 1
+    naeste_skift = np.r_[skift, n][np.searchsorted(skift, np.arange(n), side="right")]
+    p, q = buffer.numerator, buffer.denominator
+
+    rows = []
+    for side_i, H_i, b in zip(side, H, b_n1):
+        if b < 0:
+            continue
+        b = int(b)
+        demand = side_i == DEMAND
+        u, k = b + 1, int(naeste_skift[b])
+        zone_high = h[b] if demand else l[b] + H_i
+        zone_low = h[b] - H_i if demand else l[b]
+        qe = q * zone_high + p * H_i if demand else q * zone_low - p * H_i
+        aktiv = -1
+        if k <= u:
+            status, slut = k1.KONTRAKTSKIFT, k
+        else:
+            forladt = q * l[u:k] > qe if demand else q * h[u:k] < qe
+            gennem = c[u:k] < zone_low if demand else c[u:k] > zone_high
+            gennem[0] = False
+            ia = int(np.argmax(forladt)) if forladt.any() else None
+            ig = int(np.argmax(gennem)) if gennem.any() else None
+            if ig is not None and (ia is None or ig < ia):
+                status, slut = k1.UGYLDIG, u + ig
+            elif ia is not None:
+                aktiv = u + ia
+                ramt = (q * l[aktiv + 1:k] <= qe) if demand else (q * h[aktiv + 1:k] >= qe)
+                if ramt.any():
+                    status, slut = k1.BEROERT, aktiv + 1 + int(np.argmax(ramt))
+                elif k < n:
+                    status, slut = k1.KONTRAKTSKIFT, k
+                else:
+                    status, slut = k1.AKTIV, -1
+            elif k < n:
+                status, slut = k1.KONTRAKTSKIFT, k
+            else:
+                status, slut = k1.ALDRIG_AKTIV, -1
+        rows.append((side_i, b, u, bars.index[b], bars.index[u], zone_high, zone_low,
+                    c[b], H_i / c[b] * 100,
+                    bool(bars.index[u] - bars.index[b] > k1.BAR), status, slut,
+                    bars.index[slut] if slut >= 0 else pd.NaT,
+                    float(buffer), qe / q, aktiv,
+                    bars.index[aktiv] if aktiv >= 0 else pd.NaT))
+    z = pd.DataFrame(rows, columns=k1.ZONEKOLONNER_V2)
+    for kol in ("basis_tid", "udbrud_tid", "slut_tid", "aktiv_tid"):
+        z[kol] = pd.to_datetime(z[kol], utc=True)
+    return z
+
+
+def n1_gentagelse(df_1m: pd.DataFrame, bars_15m: pd.DataFrame, ekte_side: np.ndarray,
+                  ekte_basis_i: np.ndarray, ekte_H: np.ndarray, seed: int) -> dict:
+    """Én N1-gentagelse, alle 6 varianter — samme kørsel som ``simuler_alle_varianter``,
+    men på N1's tilfældigt rodfæstede zoner. Topniveau-funktion, så den kan sendes til en
+    proces-pool (§5: "Parallelisér gentagelserne over kernerne — de er uafhængige")."""
+    rng = np.random.default_rng(seed)
+    b_n1 = n1_dannelseslys(bars_15m, ekte_basis_i, rng)
+    ud = {}
+    for buffer_navn, buffer in BUFFER_VARIANTER.items():
+        zoner_n1 = find_zoner_n1(bars_15m, ekte_side, ekte_H, b_n1, buffer)
+        klass = sizing_ekte(k1.klassificer_v2(bars_15m, zoner_n1, buffer))
+        for be_navn, be_r in BE_VARIANTER.items():
+            handler, tael, strejf = handler_for_variant(df_1m, klass, be_r)
+            ud[(buffer_navn, be_navn)] = noegletal_handler(
+                {"handler": handler, "tael": tael, "strejf": strejf, "zoner": klass})
     return ud
 
 
@@ -422,6 +561,62 @@ def tidsmaaling() -> dict:
     }
 
 
+def _n1_gentagelse_med_tid(df_1m: pd.DataFrame, bars_15m: pd.DataFrame,
+                          ekte_side: np.ndarray, ekte_basis_i: np.ndarray,
+                          ekte_H: np.ndarray, seed: int) -> tuple[int, float, dict]:
+    """Wrapper til proces-poolen: én N1-gentagelse, tiden målt inde i workeren (så
+    pickling/overførsel af data IKKE tælles med i "tid pr. gentagelse")."""
+    start = time.perf_counter()
+    res = n1_gentagelse(df_1m, bars_15m, ekte_side, ekte_basis_i, ekte_H, seed)
+    varighed = time.perf_counter() - start
+    return seed, varighed, {navn: int(r["handler_n"]) for navn, r in res.items()}
+
+
+def n1_tidsmaaling(n_gentagelser: int = 5, max_workers: int | None = None) -> dict:
+    """Punkt 4: mål N1 rigtigt. ``n_gentagelser`` rigtige N1-kørsler (alle 6 varianter
+    hver), parallelliseret over kernerne — gentagelserne er uafhængige, §5. R holdes på
+    500 andetsteds; dette kører kun ``n_gentagelser`` af dem, til selve tidsmålingen.
+    Kører ikke Westfall-Young eller nogen beslutningsregel.
+    """
+    df = holdout.load_in_sample(MNQ)
+    df = df[(df.index >= MNQ_START) & (df.index < TRIN_A_SLUT)]
+    bars = resample.aggregate(df, k1.BAR_MIN)
+    ekte = k1.find_zoner_v2(bars, k1.BUFFER_V2)     # zone-identitet: buffer-uafhængig
+    ekte_side = ekte["side"].to_numpy()
+    ekte_basis_i = ekte["basis_i"].to_numpy()
+    ekte_H = (ekte["zone_high"] - ekte["zone_low"]).to_numpy(dtype=float)
+
+    n_workere = max_workers or min(n_gentagelser, os.cpu_count() or 1)
+    start_batch = time.perf_counter()
+    resultater = []
+    with ProcessPoolExecutor(max_workers=n_workere) as pool:
+        futures = [pool.submit(_n1_gentagelse_med_tid, df, bars, ekte_side, ekte_basis_i,
+                               ekte_H, 1000 + i)
+                  for i in range(n_gentagelser)]
+        for f in as_completed(futures):
+            resultater.append(f.result())
+    total_wall_batch_s = time.perf_counter() - start_batch
+    resultater.sort()
+
+    middel_s = sum(v for _, v, _ in resultater) / len(resultater)
+    # Middel pr. gentagelse undervurderer den paralleliserede kørsel: konkurrence om
+    # CPU/hukommelse gør hver gentagelse langsommere når flere kører samtidigt (målt: op
+    # til ~2,8× langsommere med 4 samtidige mod 1 alene på denne maskine). Det reelle
+    # gennemløb er derfor batchens væg-ur, ikke middelværdien delt med antal arbejdere.
+    effektiv_s_paralleliseret = total_wall_batch_s / n_gentagelser
+    n_reps_total = 500
+    return {
+        "n_gentagelser": n_gentagelser, "n_workere": n_workere,
+        "cpu_count": os.cpu_count(),
+        "resultater": resultater, "middel_s_pr_gentagelse": middel_s,
+        "total_wall_s_for_batch": total_wall_batch_s,
+        "effektiv_s_pr_gentagelse_paralleliseret": effektiv_s_paralleliseret,
+        "n_reps_total": n_reps_total,
+        "forventet_total_s_seriel": middel_s * (n_reps_total + 1),
+        "forventet_total_s_paralleliseret": effektiv_s_paralleliseret * (n_reps_total + 1),
+    }
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     grp = ap.add_mutually_exclusive_group(required=True)
@@ -429,6 +624,9 @@ def main(argv: list[str] | None = None) -> None:
                      help="v2 på NQ skal gengive b4_k1_optaelling_v2.csv præcist")
     grp.add_argument("--tidsmaaling", action="store_true",
                      help="ét gennemløb over MNQ, fremskrevet til 6 × 500 N1-gentagelser")
+    grp.add_argument("--n1-tidsmaaling", type=int, nargs="?", const=5, default=None,
+                     metavar="N", help="N rigtige N1-gentagelser (standard 5), "
+                     "parallelliseret over kernerne")
     args = ap.parse_args(argv)
 
     if args.regressionstjek:
@@ -437,6 +635,24 @@ def main(argv: list[str] | None = None) -> None:
                                      else "AFVIGER — trin A køres ikke"))
         if not ens:
             sys.exit(1)
+        return
+
+    if args.n1_tidsmaaling is not None:
+        t = n1_tidsmaaling(args.n1_tidsmaaling)
+        print(f"CPU'er: {t['cpu_count']}, arbejdere: {t['n_workere']}")
+        for seed, varighed, handler_n in t["resultater"]:
+            print(f"  seed {seed}: {varighed:.2f} s, handler_n {handler_n}")
+        print(f"Middel pr. gentagelse (uden konkurrence-effekt): "
+             f"{t['middel_s_pr_gentagelse']:.2f} s")
+        print(f"{t['n_gentagelser']} gentagelser parallelliseret: "
+             f"{t['total_wall_s_for_batch']:.2f} s væg-ur, "
+             f"{t['effektiv_s_pr_gentagelse_paralleliseret']:.2f} s/gentagelse effektivt")
+        print(f"Fremskrevet til R = {t['n_reps_total']} (+ 1 for selve kørslen): "
+             f"seriel {t['forventet_total_s_seriel']:.1f} s "
+             f"({t['forventet_total_s_seriel'] / 3600:.2f} timer), "
+             f"paralleliseret over {t['n_workere']} arbejdere "
+             f"{t['forventet_total_s_paralleliseret']:.1f} s "
+             f"({t['forventet_total_s_paralleliseret'] / 3600:.2f} timer)")
         return
 
     t = tidsmaaling()
