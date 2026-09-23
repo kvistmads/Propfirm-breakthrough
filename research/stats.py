@@ -270,6 +270,43 @@ def mean_ci(values, z: float = Z_95) -> tuple[float, float]:
     return (mean - z * se, mean + z * se)
 
 
+def t_critical(df: float, alpha: float = 0.05) -> float:
+    """Den tosidede kritiske t-værdi t_{1-alpha/2, df} — bisektion på ``t_test_p_value``.
+
+    ``t_test_p_value(t, df)`` er strengt aftagende i |t| for fast df, fra 1 ved t=0 mod
+    0. Bisektionen finder t* hvor p(t*) = alpha. df <= 0 giver +inf (intet at estimere
+    på); store df konvergerer mod normalfordelingens Z (1,96 ved alpha=0,05).
+    """
+    if df <= 0 or not math.isfinite(df):
+        return float("inf")
+    lo, hi = 0.0, 1.0
+    while t_test_p_value(hi, df) > alpha:
+        hi *= 2.0
+    for _ in range(200):
+        mid = (lo + hi) / 2.0
+        if t_test_p_value(mid, df) > alpha:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
+def mean_ci_t(values, alpha: float = 0.05) -> tuple[float, float]:
+    """95%-CI for et gennemsnit med Students t-fordeling (n-1 frihedsgrader).
+
+    Bredere end ``mean_ci``'s normalapproksimation ved lille n, og det er t-intervallet
+    der er præregistreret for handelsstørrelser (B4 kandidat 1, trin A, §8).
+    """
+    arr = np.asarray([v for v in values if v is not None and np.isfinite(v)], dtype=float)
+    n = len(arr)
+    if n < 2:
+        return (float("nan"), float("nan"))
+    se = arr.std(ddof=1) / math.sqrt(n)
+    mean = float(arr.mean())
+    tcrit = t_critical(n - 1, alpha)
+    return (mean - tcrit * se, mean + tcrit * se)
+
+
 def breakeven_win_rate(avg_win_r: float, avg_loss_r: float, cost_r: float = 0.0) -> float:
     """Den win rate der lige akkurat går i nul, givet de FAKTISKE haler.
 

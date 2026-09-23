@@ -150,3 +150,36 @@ class TestStyrke:
 
     def test_flere_handler_ser_mindre_forskelle(self):
         assert stats.min_detectable_diff(1000) < stats.min_detectable_diff(100)
+
+
+class TestTInterval:
+    def test_t_kritisk_kendte_vaerdier(self):
+        # Standard t-tabel, tosidet 95%.
+        assert stats.t_critical(10) == pytest.approx(2.228, abs=1e-3)
+        assert stats.t_critical(30) == pytest.approx(2.042, abs=1e-3)
+        assert stats.t_critical(120) == pytest.approx(1.980, abs=1e-3)
+
+    def test_t_kritisk_konvergerer_mod_z_ved_store_df(self):
+        assert stats.t_critical(100_000) == pytest.approx(stats.Z_95, abs=1e-3)
+
+    def test_t_kritisk_uden_frihedsgrader_er_uendelig(self):
+        assert stats.t_critical(0) == float("inf")
+
+    def test_mean_ci_t_bredere_end_normalapproksimationen_ved_lille_n(self):
+        vaerdier = [1.0, 2.0, -1.0, 0.5, 3.0, -0.5]
+        lo_t, hi_t = stats.mean_ci_t(vaerdier)
+        lo_z, hi_z = stats.mean_ci(vaerdier)
+        assert (hi_t - lo_t) > (hi_z - lo_z)
+        assert lo_t < np.mean(vaerdier) < hi_t
+
+    def test_mean_ci_t_for_faa_punkter(self):
+        lo, hi = stats.mean_ci_t([1.0])
+        assert math.isnan(lo) and math.isnan(hi)
+
+    def test_mean_ci_t_konvergerer_mod_normalapproksimationen_ved_stort_n(self):
+        rng = np.random.default_rng(0)
+        vaerdier = rng.normal(0, 1, 5000)
+        lo_t, hi_t = stats.mean_ci_t(vaerdier)
+        lo_z, hi_z = stats.mean_ci(vaerdier)
+        assert lo_t == pytest.approx(lo_z, abs=1e-3)
+        assert hi_t == pytest.approx(hi_z, abs=1e-3)
