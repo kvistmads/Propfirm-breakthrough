@@ -9,7 +9,7 @@ uændret — dette modul lægger handelsmekanikken (§4) oven på den samme zone
 varianter × N1 med 500 gentagelser, Westfall-Young) kræver Mads' godkendelse og er ikke
 implementeret her.
 
-## Hvorfor sizing regnes om, §4d
+## Hvorfor sizing regnes om, §4d — præciseret 2026-09-23
 
 ``research/b4_k1_optaelling.py``'s ``sizing()`` regner risiko i point ved en FAST
 reference (NQ 29.138, jf. ``b4_hypoteser.md``, "Prisniveau"). Det er rigtigt til
@@ -18,8 +18,16 @@ tredoblet), men det er IKKE den rigtige risiko for en faktisk handel: prisen var
 historisk, ikke ved 29.138. §4d er eksplicit: **"Risiko = E − low = 1,1 × H"** — et
 rigtigt pointtal fra zonens egne E/low/high, ikke en omregning. Handelsmodulet bruger
 derfor sine egne ``*_ekte``-kolonner (``sizing_ekte``), regnet direkte på zonens rigtige
-priser. Stoploftet (``under_stoploft``, en procent af den rigtige basislyspris) er
-upåvirket og genbruges som det er.
+priser.
+
+**k1's ``under_stoploft`` (0,429% af den rigtige pris) bruges IKKE i handelsmodulet.**
+Den er et relativt breddefilter, ikke dollarloftet — de to er kun samme tal ved NQ
+29.138, hvor optællingsmodulet netop regner. På de rigtige historiske priser ville
+procentreglen afvise ca. 8,4% af berøringerne uanset hvad de koster i dollar, en variant
+ingen har valgt. PRD §3c's egentlige krav — "Handler hvor ét MNQ alene ville risikere
+mere end $250, tages ikke" — håndhæves alene af ``kontrakter_ekte``: **en handel tages
+hvis og kun hvis ``kontrakter_ekte ≥ 1``.** Kandidatudvalget bruger derfor k1's
+``i_vindue`` (kun tidsvinduet), ikke ``signal`` (som stadig bærer procentreglen).
 
 ## Fyldning, §4a-4c
 
@@ -56,7 +64,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from data import holdout, resample  # noqa: E402
 from research import b4_k1_optaelling as k1  # noqa: E402
-from research.stats import mean_ci_t, wilson_interval  # noqa: E402
+from research.stats import breakeven_win_rate, mean_ci_t, wilson_interval  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "research" / "output"
@@ -79,6 +87,8 @@ DEMAND, SUPPLY = k1.DEMAND, k1.SUPPLY
 
 BUFFER_VARIANTER = {"buffer_10": Fraction(1, 10), "buffer_0": Fraction(0)}
 BE_VARIANTER = {"ingen": None, "BE_1_0R": 1.0, "BE_1_2R": 1.2}   # §3, PRD §3b
+
+KONTRAKTER_LOFT = 50                 # $50K positionsloft, REGLER_VERIFICERET.md §90
 
 MAAL, STOP, BE_UDFALD, TIDSEXIT, CENSURERET = "maal", "stop", "BE", "tidsexit", "censureret"
 UDFALD = (MAAL, STOP, BE_UDFALD, TIDSEXIT, CENSURERET)
@@ -104,6 +114,35 @@ def sizing_ekte(zoner: pd.DataFrame) -> pd.DataFrame:
     z["kontrakter_ekte"] = np.floor(np.round(RISIKO_USD / risiko_usd, 9))
     z["omk_R_netto_ekte"] = OMK_USD_RUNDTUR / risiko_usd
     return z
+
+
+def _sizing_raekke(etiket: str, sub: pd.DataFrame) -> dict:
+    row = {"periode": etiket, "zoner_i_vindue_n": len(sub)}
+    for q in (10, 50, 90):
+        row[f"risiko_pt_p{q}"] = k1._p(sub["risiko_pt_ekte"], q)
+    for q in (50, 90):
+        row[f"kontrakter_p{q}"] = k1._p(sub["kontrakter_ekte"], q)
+    row["kontrakter_maks"] = float(sub["kontrakter_ekte"].max()) if len(sub) else float("nan")
+    row["omk_R_netto_p50"] = k1._p(sub["omk_R_netto_ekte"], 50)
+    row["be_WR_pct_netto_p50"] = (100 * breakeven_win_rate(RR, 1.0, row["omk_R_netto_p50"])
+                                  if len(sub) else float("nan"))
+    afvist = int((sub["kontrakter_ekte"] == 0).sum())
+    row["afvist_kontrakter_nul_n"] = afvist
+    row["afvist_kontrakter_nul_pct"] = 100 * afvist / len(sub) if len(sub) else float("nan")
+    return row
+
+
+def sizing_tabel(zoner: pd.DataFrame) -> pd.DataFrame:
+    """§4d: risiko, kontrakter og omkostning pr. år — konsekvensen af den ægte, reelle
+    punktrisiko, målt i stedet for antaget. Population er ``i_vindue`` (berøringer i
+    indgangsvinduet), FØR dollarloftets ``kontrakter_ekte >= 1``-filter, så
+    ``afvist_kontrakter_nul_n`` viser hvor mange loftet faktisk afviser.
+    """
+    pop = zoner[zoner["i_vindue"].astype(bool)]
+    aar_liste = sorted(pop["dag"].dt.year.unique()) if len(pop) else []
+    rows = [_sizing_raekke("alle", pop)]
+    rows += [_sizing_raekke(str(a), pop[pop["dag"].dt.year == a]) for a in aar_liste]
+    return pd.DataFrame(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -176,10 +215,11 @@ def handler_for_variant(df_1m: pd.DataFrame, zoner: pd.DataFrame, be_r: float | 
     """Alle handler for én BE-variant. ``zoner`` er kerne v2 (klassificeret, med
     ``sizing_ekte``-kolonnerne) for én buffer-variant.
 
-    Kandidaterne er zoner med ``signal`` og mindst 1 ægte kontrakt, kronologisk pr. dag.
-    En berøring mens en position er åben, eller efter dagen er lukket, springes over og
-    tælles. Fyldes ordren ikke (strejf), regnes en kontrafaktisk handel til diagnose,
-    §4c — den ændrer intet i tælling eller stat.
+    Kandidaterne er zoner med ``i_vindue`` (berøring i tidsvinduet — IKKE k1's
+    ``signal``, som stadig bærer den procentbaserede ``under_stoploft``) og mindst 1
+    ægte kontrakt, §4d. En berøring mens en position er åben, eller efter dagen er
+    lukket, springes over og tælles. Fyldes ordren ikke (strejf), regnes en
+    kontrafaktisk handel til diagnose, §4c — den ændrer intet i tælling eller stat.
     """
     times = df_1m.index
     h = df_1m["high"].to_numpy(dtype=float)
@@ -187,7 +227,7 @@ def handler_for_variant(df_1m: pd.DataFrame, zoner: pd.DataFrame, be_r: float | 
     c = df_1m["close"].to_numpy(dtype=float)
     n = len(df_1m)
 
-    kand = zoner[zoner["signal"] & (zoner["kontrakter_ekte"] > 0)]
+    kand = zoner[zoner["i_vindue"] & (zoner["kontrakter_ekte"] >= 1)]
     kand = kand.sort_values(["dag", "slut_tid", "basis_i"]).reset_index(drop=True)
 
     rows: list[dict] = []
@@ -308,11 +348,14 @@ def noegletal_handler(res: dict) -> dict:
     else:
         row["strejf_hvis_fyldt_middel_R_netto"] = float("nan")
         row["strejf_hvis_fyldt_win_rate_pct_netto"] = float("nan")
-    sig = zoner[zoner["signal"] & (zoner["kontrakter_ekte"] > 0)]
+    sig = zoner[zoner["i_vindue"] & (zoner["kontrakter_ekte"] >= 1)]
     for q in (10, 50, 90):
         row[f"risiko_pt_p{q}"] = k1._p(sig["risiko_pt_ekte"], q)
         row[f"kontrakter_p{q}"] = k1._p(sig["kontrakter_ekte"], q)
     row["omk_R_netto_p50"] = k1._p(sig["omk_R_netto_ekte"], 50)
+    row["kontrakter_maks"] = float(sig["kontrakter_ekte"].max()) if len(sig) else float("nan")
+    row["afvist_kontrakter_nul_n"] = int(
+        (zoner["i_vindue"] & (zoner["kontrakter_ekte"] == 0)).sum())
     return row
 
 

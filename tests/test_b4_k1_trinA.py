@@ -178,6 +178,46 @@ class TestSizingEkte:
         assert z["kontrakter_ekte"].iloc[0] >= 1
 
 
+class TestSizingTabel:
+    def _pop(self) -> pd.DataFrame:
+        # 2019: dyr risiko relativt (lav pris), én zone afvist af dollarloftet.
+        # 2023: billigere risiko relativt (høj pris), ingen afvist.
+        return pd.DataFrame([
+            {"i_vindue": True, "dag": pd.Timestamp("2019-06-01"),
+             "risiko_pt_ekte": 9.0, "kontrakter_ekte": 13.0, "omk_R_netto_ekte": 0.1500},
+            {"i_vindue": True, "dag": pd.Timestamp("2019-07-01"),
+             "risiko_pt_ekte": 130.0, "kontrakter_ekte": 0.0, "omk_R_netto_ekte": 0.0800},
+            {"i_vindue": True, "dag": pd.Timestamp("2023-06-01"),
+             "risiko_pt_ekte": 21.0, "kontrakter_ekte": 5.0, "omk_R_netto_ekte": 0.0625},
+            {"i_vindue": False, "dag": pd.Timestamp("2023-06-02"),        # ikke i populationen
+             "risiko_pt_ekte": 5.0, "kontrakter_ekte": 20.0, "omk_R_netto_ekte": 0.26},
+        ])
+
+    def test_population_er_i_vindue_foer_dollarloftet(self):
+        tab = t.sizing_tabel(self._pop())
+        alle = tab[tab["periode"] == "alle"].iloc[0]
+        assert alle["zoner_i_vindue_n"] == 3            # ikke de 4 — den fjerde er ikke i_vindue
+        assert alle["afvist_kontrakter_nul_n"] == 1
+
+    def test_pr_aar_og_konsekvensen_maales_ikke_antages(self):
+        tab = t.sizing_tabel(self._pop())
+        y19 = tab[tab["periode"] == "2019"].iloc[0]
+        y23 = tab[tab["periode"] == "2023"].iloc[0]
+        assert (y19["zoner_i_vindue_n"], y23["zoner_i_vindue_n"]) == (2, 1)
+        assert y19["afvist_kontrakter_nul_n"] == 1 and y23["afvist_kontrakter_nul_n"] == 0
+        # 2019's median omkostning i R er tungere end 2023's — §4d's pointe.
+        assert y19["omk_R_netto_p50"] > y23["omk_R_netto_p50"]
+        assert y19["kontrakter_maks"] == 13.0 and y23["kontrakter_maks"] == 5.0
+        assert y19["be_WR_pct_netto_p50"] > y23["be_WR_pct_netto_p50"]
+
+    def test_tom_population_giver_ingen_fejl(self):
+        tom = pd.DataFrame(columns=["i_vindue", "dag", "risiko_pt_ekte", "kontrakter_ekte",
+                                    "omk_R_netto_ekte"])
+        tab = t.sizing_tabel(tom)
+        assert len(tab) == 1 and tab.iloc[0]["periode"] == "alle"
+        assert tab.iloc[0]["zoner_i_vindue_n"] == 0
+
+
 # ===========================================================================
 # 3. handler_for_variant — fyldning, strejf og disciplinreglerne
 # ===========================================================================
@@ -191,9 +231,9 @@ def _1m(rows, start_ct="2023-06-14 09:00") -> pd.DataFrame:
 
 
 def _zone(side, E, risiko_pt, dag, slut_tid, basis_i=0, kontrakter=2, omk_R=0.01,
-         signal=True) -> dict:
+         i_vindue=True) -> dict:
     return {"side": side, "E": E, "risiko_pt_ekte": risiko_pt, "kontrakter_ekte": kontrakter,
-            "omk_R_netto_ekte": omk_R, "signal": signal, "dag": pd.Timestamp(dag),
+            "omk_R_netto_ekte": omk_R, "i_vindue": i_vindue, "dag": pd.Timestamp(dag),
             "slut_tid": _ct(slut_tid).tz_convert("UTC"), "basis_i": basis_i}
 
 
@@ -322,9 +362,19 @@ class TestDisciplin:
         handler, tael, strejf = t.handler_for_variant(df, pd.DataFrame([zone]), be_r=None)
         assert len(handler) == 0 and len(strejf) == 0
 
-    def test_kun_signal_true_zoner_er_kandidater(self):
+    def test_kun_i_vindue_zoner_er_kandidater(self):
+        """IKKE k1's ``signal`` — den bærer stadig den droppede procentregel, §4d."""
         zone = _zone(k1.DEMAND, E=10_020.0, risiko_pt=20.0, dag="2023-06-14",
-                     slut_tid="2023-06-14 09:00", signal=False)
+                     slut_tid="2023-06-14 09:00", i_vindue=False)
+        df = _serie(20, flad_ved={3: (10_020.0, 10_020.0, 10_019.75, 10_020.0)})
+        handler, tael, strejf = t.handler_for_variant(df, pd.DataFrame([zone]), be_r=None)
+        assert len(handler) == 0 and len(strejf) == 0
+
+    def test_hoej_risiko_afvist_selvom_under_0429_pct_ikke_er_sat(self):
+        """§4d: kontrakter_ekte >= 1 er det ENESTE loft — der er ingen procenttest her.
+        En zone med kontrakter_ekte = 0 (for stor dollarrisiko) udelukkes uanset."""
+        zone = _zone(k1.DEMAND, E=10_020.0, risiko_pt=130.0, dag="2023-06-14",
+                     slut_tid="2023-06-14 09:00", kontrakter=0, i_vindue=True)
         df = _serie(20, flad_ved={3: (10_020.0, 10_020.0, 10_019.75, 10_020.0)})
         handler, tael, strejf = t.handler_for_variant(df, pd.DataFrame([zone]), be_r=None)
         assert len(handler) == 0 and len(strejf) == 0
