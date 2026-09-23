@@ -382,6 +382,9 @@ def test_mnq_is_never_requested_before_its_listing(tmp_path):
     assert cli.estimates == 2
 
 
-def test_the_phase_budget_is_forty_dollars():
-    """Hævet fra $25 den 2026-09-11 — spread skal måles, ikke skønnes."""
-    assert src_databento.BUDGET_USD == 40.0
+def test_the_phase_budget_matches_the_databento_credits():
+    """$25 -> $40 den 2026-09-11 (spread skal maales, ikke skoennes).
+    $40 -> $120 den 2026-09-23: loftet saettes efter Databentos startkredit
+    paa $125, med $5 i margen. Ledgeren stemte paa cent'en mod kreditsaldoen
+    ved skiftet ($33,29 bogfoert, $91,71 tilbage af $125)."""
+    assert src_databento.BUDGET_USD == 120.0

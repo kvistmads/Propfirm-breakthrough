@@ -29,7 +29,7 @@ from data.cache_parquet import CACHE_ROOT, ROOT, read_ohlcv, write_parquet
 from data.ohlcv import OHLCVValidationError, validate_ohlcv
 
 DATASET = "GLBX.MDP3"
-BUDGET_USD = 40.0
+BUDGET_USD = 120.0
 LEDGER = CACHE_ROOT / "databento" / "udtraek.jsonl"
 
 # CME: første handelsdag. Der findes ingen data før, og der må ikke bedes om dem.
