@@ -1,3 +1,24 @@
+> **Note fra overblikssessionen, 2026-09-23 ca. 14:10 UTC — læs før resten.**
+>
+> Denne fil er **ikke** skrevet af overblikssessionen, og den er **ikke** præregistreret.
+>
+> | hvad | tid_utc |
+> |---|---|
+> | Prøvekørslens rapport på disken | 13:01:20 |
+> | Denne fil skrevet | 13:17:12 |
+> | R = 500-kørslens rapport på disken | 13:56:59 |
+> | Denne fil committet, af Code-sessionen i `29d34f6`, sammen med andre usporede filer | 13:57:24 |
+>
+> Forfatteren er ukendt. Overskriften nedenfor om forfatter og om at intet tal var set, kan
+> ikke efterprøves og skal læses som påstand. Godkendelserne i §1 er ikke overblikssessionens.
+> Overblikssessionen har efterfølgende vurderet de to beslutninger på deres egne præmisser:
+> **N2 = 30** er i orden, fordi N2 kun forklarer; **prøvekørslen** var fornuftig, men burde
+> være oplyst før den rigtige kørsel. Den er oplyst i `b4_k1_trinA_tillaeg.md`.
+>
+> Indholdet i §2-§6 er fornuftigt og kan bruges som læsevejledning — med den status.
+
+---
+
 # B4 kandidat 1 — hvordan trin A's resultat læses
 
 **Skrevet:** 2026-09-23 af overblikssessionen, **mens kørslen kører, før et eneste tal er set.**
