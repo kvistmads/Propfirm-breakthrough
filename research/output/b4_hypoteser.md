@@ -147,4 +147,6 @@ Optællingerne ser ikke på udfald og lægger intet til tælleren.
 
 ### Edge-testens omfang — besluttet 2026-09-22
 
+**Trin A — resultat, 2026-09-23** (`research/output/b4_k1_trinA_laest.md`): bedste variant buffer 0 / ingen BE, middel_R_netto 0,095 [0,010; 0,180], **p_FWE 0,15** mod N1. Ikke skelnelig fra tilfældigt placerede zoner. BE hjælper ikke; bufferen er uafgjort. Retesten holder 59-64%, ikke 90%. Handling: trin 2. N = 6.
+
 **Trin A først:** kernen v2 med BE (ingen / 1,0R / 1,2R) × buffer (10% / 0%) = 6 varianter, faktor 1,50× mod N = 3. Filtersøgningen er et eget, senere trin med egen præregistrering. Præregistreret 2026-09-23 i `research/prereg/b4_k1_trinA.md`: serien er **MNQ.v.0 2019-05-06 til 2023-12-31** (1.173 RTH-dage), nulmodellen er N1 (tilfældig dannelsestid, 500 gentagelser, Westfall-Young maks-statistik), fyldningsreglen er gennemhandling med ét tick med rækkefølgen inde i baren afgjort på 1m-serien, og det afgørende mål er middel netto-R pr. handel, ikke win rate.

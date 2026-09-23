@@ -1,5 +1,11 @@
 # B4 kandidat 1 — trin A: edge-test af kernen
 
+> **Rettelser, overblikssessionen 2026-09-23, efter kørslen. Ingen tal i rapporten er ændret.**
+> Læs `b4_k1_trinA_laest.md` sammen med denne rapport. Kort: `b4_k1_trinA_laesning.md` er
+> *ikke* skrevet af overblikssessionen; N2's tal er et artefakt af en for løs specifikation
+> og kan ikke bruges; fyldningsbaren har en lille optimistisk skævhed der rammer kerne og N1
+> ens; strejf-tjekket er ikke et faresignal (8-21 tilfælde, udvalgt på fremtiden).
+
 Kørt 2026-09-23 13:52 UTC fra commit `29f3116`, med modul, tests og præregistrering committet og uændrede. Præregistrering `research/prereg/b4_k1_trinA.md` (commit `5102c4e`). Kode `research/b4_k1_trinA.py` (commit `29f3116`).
 
 Serie: MNQ.v.0 ohlcv-1m gennem `data.holdout.load_in_sample`, 2019-05-06 → 2023-12-31. 1638282 1m-barer → 109598 15m-barer. 6 varianter. N1: 500 gentagelser. N2: 30 gentagelser (FORELØBIG, §5 angiver intet R for N2 — se koden).
