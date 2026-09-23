@@ -1082,7 +1082,7 @@ def skriv_trin_a_md(resultat: dict, meta: dict) -> str:
         "## Efter kørslen — §10\n",
         "Stop. Ingen ændring af definitioner, ingen forslag til forbedringer. Resultatet "
         "læses sammen med Mads.\n",
-        f"Alle tal, alle varianter × side × år: `{OUT.name}/b4_k1_trinA.csv`.\n",
+        f"Alle tal, alle varianter × side × år: `{_rel(OUT / 'b4_k1_trinA.csv')}`.\n",
     ]
     return "\n".join(dele)
 
