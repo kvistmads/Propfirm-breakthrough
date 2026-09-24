@@ -602,3 +602,101 @@ def test_scorelinjer_nu_har_optaellingens_kolonneorden():
     linjer = t2._score_linjer_nu((spor,), dage)
     assert len(linjer) == 8 * 5
     assert all(x.split(",")[:2] == ["A", "score"] for x in linjer)
+
+
+# ===========================================================================
+# 7. Berøringsbarens længde — spor B's 5m-lys, tillæggets §3.1
+# ===========================================================================
+#
+# Alle tests ovenfor kører på 15m. Netop berøringsbarens længde var fejlen i trin A's
+# ``handler_for_variant`` (``k1.BAR`` hårdkodet til 15 minutter), og på spor B er baren
+# fem minutter. Fyldningen skal søges i berøringslysets egne fem minutter og ikke ét
+# minut længere: §4a regel 1 siger "inden for netop den berøringsbar".
+
+BEROERING_UTC = "2023-06-14 14:10"      # 09:10 CT, tiende minut af serien nedenfor
+E_5M = 100.0
+RISIKO_5M = 10.0
+
+
+def _5m_zone(beroering: str = BEROERING_UTC) -> pd.DataFrame:
+    """Én berørt demand-zone med præcis de kolonner ``gennemloeb`` læser."""
+    return pd.DataFrame([{
+        "side": k1.DEMAND, "basis_i": 0, "slut_tid": pd.Timestamp(beroering, tz="UTC"),
+        "dag": pd.Timestamp("2023-06-14"), "E": E_5M, "i_vindue": True,
+        "kontrakter_ekte": 12.0, "risiko_pt_ekte": RISIKO_5M,
+        "omk_R_netto_ekte": 0.0}])
+
+
+def _serie_med_gennemhandling(minut: int, n: int = 60) -> pd.DataFrame:
+    """60 sammenhængende 1m-lys fladt over E, med ét dyk gennem E i minut ``minut``.
+
+    Dykket går ét tick under E, så §4a regel 1 er opfyldt — ikke et strejf.
+    """
+    rows = [(110.0, 110.0, 110.0, 110.0)] * n
+    rows[minut] = (110.0, 110.0, E_5M - t2.TICK, 110.0)
+    return _1m(rows, start=START_UTC)
+
+
+@pytest.mark.parametrize("minut", [10, 11, 12, 13, 14])
+def test_gennemhandling_i_beroeringslysets_fem_minutter_fylder(minut):
+    df = _serie_med_gennemhandling(minut)
+    handler, _, strejf = t2.gennemloeb(df, _5m_zone(), 5, t2.BE_R, disciplin=True)
+    assert len(handler) == 1
+    assert handler["fyld_tid"].iloc[0] == df.index[minut]
+    assert pd.Timestamp(BEROERING_UTC, tz="UTC") <= handler["fyld_tid"].iloc[0]
+    assert handler["fyld_tid"].iloc[0] < (pd.Timestamp(BEROERING_UTC, tz="UTC")
+                                          + pd.Timedelta(minutes=5))
+    assert len(strejf) == 0
+
+
+def test_gennemhandling_i_sjette_minut_fylder_ikke_denne_beroering():
+    """Sjette minut er det næste 5m-lys. Berøringen er forbi, og ordren fylder ikke."""
+    df = _serie_med_gennemhandling(15)
+    handler, _, strejf = t2.gennemloeb(df, _5m_zone(), 5, t2.BE_R, disciplin=True)
+    assert len(handler) == 0
+    assert len(strejf) == 0              # E blev ikke engang rørt i de fem minutter
+
+
+def test_samme_serie_paa_15m_fylder_i_sjette_minut_og_det_er_forskellen():
+    """Den samme serie med ``bar_min=15`` fylder — det er præcis trin A's hårdkodede
+    ``k1.BAR``, og grunden til at længden skal følge sporet."""
+    df = _serie_med_gennemhandling(15)
+    paa_15, _, _ = t2.gennemloeb(df, _5m_zone(), 15, t2.BE_R, disciplin=True)
+    paa_5, _, _ = t2.gennemloeb(df, _5m_zone(), 5, t2.BE_R, disciplin=True)
+    assert len(paa_15) == 1 and paa_15["fyld_tid"].iloc[0] == df.index[15]
+    assert len(paa_5) == 0
+
+
+def test_beroering_der_kun_rammer_E_i_de_fem_minutter_er_et_strejf():
+    """§4a regel 7: E rørt uden gennemhandling — zonen er stadig død, ingen handel."""
+    rows = [(110.0, 110.0, 110.0, 110.0)] * 60
+    rows[12] = (110.0, 110.0, E_5M, 110.0)
+    df = _1m(rows, start=START_UTC)
+    handler, _, strejf = t2.gennemloeb(df, _5m_zone(), 5, t2.BE_R, disciplin=True)
+    assert len(handler) == 0
+    assert len(strejf) == 1
+
+
+def test_fyldningen_ligger_altid_i_beroeringslyset_paa_en_aegte_5m_serie():
+    """Samme krav ført gennem hele vejen: kerne v2 på 5m-lys, ``fl.klassificer`` med
+    5 som timeframe, og ``gennemloeb`` med ``bar_min=5``. Ingen fyldning må ligge uden
+    for sit eget berøringslys — og med trin A's 15 minutter gør mindst én det, og
+    handelslisten bliver en anden."""
+    from data import resample
+    df = pd.concat([_tilfaeldig_1m(420, 67 + i, start=f"2023-06-{5 + i:02d} 13:35")
+                    for i in range(6)])
+    bars = resample.aggregate(df, 5)
+    z = trinA.sizing_ekte(fl.klassificer(bars, k1.find_zoner_v2(bars, k1.BUFFER_V2), 5))
+    handler, _, _ = t2.gennemloeb(df, z, 5, t2.BE_R, disciplin=True)
+    assert len(handler) > 0
+    slut = z.set_index("basis_i")["slut_tid"]
+    ber = pd.DatetimeIndex(handler["basis_i"].map(slut))
+    fyld = pd.DatetimeIndex(handler["fyld_tid"])
+    assert (fyld >= ber).all()
+    assert (fyld < ber + pd.Timedelta(minutes=5)).all()
+
+    paa_15, _, _ = t2.gennemloeb(df, z, 15, t2.BE_R, disciplin=True)
+    ber15 = pd.DatetimeIndex(paa_15["basis_i"].map(slut))
+    fyld15 = pd.DatetimeIndex(paa_15["fyld_tid"])
+    assert (fyld15 >= ber15 + pd.Timedelta(minutes=5)).any()
+    assert len(paa_15) != len(handler)
