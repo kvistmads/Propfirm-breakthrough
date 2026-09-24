@@ -172,4 +172,4 @@ Optællingerne ser ikke på udfald og lægger intet til tælleren.
 | omk_R_netto_p50 / p90 | 0,063 / 0,177 | 0,092 / 0,265 |
 | be_WR_pct_netto_p50 | 35,4 | 36,4 |
 
-Alle tre tærskler og "brud alene" er testbare på begge spor (§5). Kriterium 6 og 7 trækker mod hinanden (phi −0,48 / −0,53), og kriterium 1 og 4 måler delvis det samme (+0,46 / +0,52). Spor B: afventer ejerens beslutning.
+Alle tre tærskler og "brud alene" er testbare på begge spor (§5). Kriterium 6 og 7 trækker mod hinanden (phi −0,48 / −0,53), og kriterium 1 og 4 måler delvis det samme (+0,46 / +0,52). Spor B: **med**, besluttet af ejeren 2026-09-24. Trin 2 præregistreret i `research/prereg/b4_k1_trin2.md`: hovedtest (hældning af middel netto-R på scoren, pr. spor) og otte varianter, N i alt 16.
