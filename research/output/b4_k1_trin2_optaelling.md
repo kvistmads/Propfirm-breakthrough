@@ -4,14 +4,14 @@ Kørt 2026-09-23 19:40 UTC fra commit `ca80a66`, med modul, tests, præregistrer
 
 Serie: MNQ.v.0 ohlcv-1m gennem `data.holdout.load_in_sample`, 2019-05-06 00:00 → 2023-12-29 21:59 UTC, 1638282 1m-barer. RTH-dage: 1173. Kerne v2 med buffer 10%; et signal er en berøring i indgangsvinduet hvor `kontrakter_ekte ≥ 1`.
 
-**Kørslen ser ikke på udfald.** Ingen handel er simuleret, intet R er regnet, ingen tærskel er valgt, og intet er lagt til tælleren for den deflaterede tærskel. §5's grænse på 310 dage står i tabellerne som en aflæsning, ikke som et valg — varianterne vælges sammen med Mads efter §5.
+**Kørslen ser ikke på udfald.** Ingen handel er simuleret, intet R er regnet, ingen tærskel er valgt, og intet er lagt til tælleren for den deflaterede tærskel. §5's grænse på 310 dage står i tabellerne som en aflæsning, ikke som et valg — varianterne vælges sammen med ejeren efter §5.
 
 ## Regressionstjek, §4 — før kørslen
 
 - `research/b4_k1_optaelling.py` gengiver `b4_k1_optaelling_v2.csv` byte for byte: **OK**.
 - Spor A's signaler ved score ≥ 0 mod trin A-motorens kandidater for buffer 10%: 3349 mod 3349 zoner, **identiske**.
 
-## Fire præciseringer, afklaret med Mads 2026-09-23 før kørslen
+## Fire præciseringer, afklaret med ejeren 2026-09-23 før kørslen
 
 §3b's ordlyd er ikke ændret. Fire steder var den ikke entydig, og to steder var den bogstavelige læsning degenereret; andelene nedenfor er målt på MNQ-serien før spørgsmålet blev stillet.
 
@@ -245,6 +245,6 @@ Populationen er signalerne. `risiko_pt` er E − low (supply: high − E) på zo
 
 ## Efter kørslen
 
-Stop. Ingen ændring af definitionerne, ingen valg af tærskler — det gøres sammen med Mads efter §5.
+Stop. Ingen ændring af definitionerne, ingen valg af tærskler — det gøres sammen med ejeren efter §5.
 
 Alle tal, også de 21 phi-værdier og alle årstal: `b4_k1_trin2_optaelling.csv` (langt format: `tabel`, `periode`, `side`, `noegle`, `stoerrelse`, `vaerdi`).

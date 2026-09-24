@@ -36,7 +36,7 @@ Swing-punkter: N = 5 på alle timeframes. Et lys er swing high hvis dets high er
 de 5 lys før og mindst lige så højt som de 5 lys efter; swing low spejlvendt. Punktet er
 kendt fra og med lukningen af det femte lys efter, jf. §3a.
 
-## Fire præciseringer, afklaret med Mads 2026-09-23 før kørslen
+## Fire præciseringer, afklaret med ejeren 2026-09-23 før kørslen
 
 §3b's ordlyd er ikke ændret; fire steder var den ikke entydig, og den bogstavelige læsning
 var to steder degenereret. Målingerne står i rapporten.
@@ -703,7 +703,7 @@ def skriv_md(resultater: dict, meta: dict) -> str:
         "**Kørslen ser ikke på udfald.** Ingen handel er simuleret, intet R er regnet, "
         "ingen tærskel er valgt, og intet er lagt til tælleren for den deflaterede "
         "tærskel. §5's grænse på 310 dage står i tabellerne som en aflæsning, ikke som et "
-        "valg — varianterne vælges sammen med Mads efter §5.\n",
+        "valg — varianterne vælges sammen med ejeren efter §5.\n",
         "## Regressionstjek, §4 — før kørslen\n",
         f"- `research/b4_k1_optaelling.py` gengiver `b4_k1_optaelling_v2.csv` byte for "
         f"byte: **{'OK' if meta['regression']['csv_byte_for_byte'] else 'AFVIGER'}**.\n"
@@ -711,7 +711,7 @@ def skriv_md(resultater: dict, meta: dict) -> str:
         f"{meta['regression']['spor_a_signaler_n']} mod "
         f"{meta['regression']['trin_a_kandidater_n']} zoner, "
         f"**{'identiske' if meta['regression']['identiske'] else 'FORSKELLIGE'}**.\n",
-        "## Fire præciseringer, afklaret med Mads 2026-09-23 før kørslen\n",
+        "## Fire præciseringer, afklaret med ejeren 2026-09-23 før kørslen\n",
         "§3b's ordlyd er ikke ændret. Fire steder var den ikke entydig, og to steder var "
         "den bogstavelige læsning degenereret; andelene nedenfor er målt på MNQ-serien før "
         "spørgsmålet blev stillet.\n",
@@ -758,7 +758,7 @@ def skriv_md(resultater: dict, meta: dict) -> str:
         meta["forventning"],
         "## Efter kørslen\n",
         "Stop. Ingen ændring af definitionerne, ingen valg af tærskler — det gøres sammen "
-        "med Mads efter §5.\n",
+        "med ejeren efter §5.\n",
         f"Alle tal, også de 21 phi-værdier og alle årstal: `{meta['csv_navn']}` "
         "(langt format: `tabel`, `periode`, `side`, `noegle`, `stoerrelse`, `vaerdi`).\n",
     ]

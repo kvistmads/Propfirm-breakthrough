@@ -604,6 +604,7 @@ Disse er ikke stilpræferencer. Hver enkelt er skrevet efter at være gået galt
 | **`.env` i `.gitignore`, aldrig committet** | Verifikation: `grep -c "^\.env$" .gitignore` → mindst 1, og `git --no-optional-locks status --porcelain=v1 \| grep -c "env"` → 0 |
 | **Nøgler roteres aldrig midt i en kørsel** | Gjort én gang. Gav 401 og dræbte et MNQ-udtræk halvvejs |
 | **`REAL TRADING BOT` er kun læsekilde** | Slå op frit. Ingen kode her må importere derfra, og der skrives aldrig tilbage |
+| **Ejerens navn skrives ikke** — hverken i chatten, i dokumenter, i kode eller i rapporttekst. Skriv "ejeren" | Ønsket af ejeren 2026-09-23. Gælder også Code-sessioner |
 
 ### Testning kræver ikke Topstep
 

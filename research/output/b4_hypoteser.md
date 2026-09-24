@@ -161,3 +161,15 @@ Optællingerne ser ikke på udfald og lægger intet til tælleren.
 | Spor | A: 15m med 1h. B: 5m med 15m (videoens eksempel). B går kun videre hvis omkostningerne tillader det, besluttet på udfaldsfri tal |
 | Definitioner | `research/prereg/b4_k1_trin2_optaelling.md` §3 |
 | **Stopregel** | **Stiger middel netto-R ikke med scoren, parkeres kandidat 1, og kandidat 2 findes.** Ingen redningsforsøg |
+
+**Optællingen, 2026-09-23** (`research/output/b4_k1_trin2_optaelling.md`, udfaldsfri, præciseringer i `research/prereg/b4_k1_trin2_optaelling_tillaeg.md`):
+
+| | spor A, 15m/1h | spor B, 5m/15m |
+|---|---|---|
+| signaler_n | 3.349 | 9.273 |
+| dage_med_signal_n ved score ≥ 2 / ≥ 3 / ≥ 4 | 1.012 / 883 / 585 | 1.168 / 1.127 / 942 |
+| dage_med_signal_n, brud alene | 914 | 1.139 |
+| omk_R_netto_p50 / p90 | 0,063 / 0,177 | 0,092 / 0,265 |
+| be_WR_pct_netto_p50 | 35,4 | 36,4 |
+
+Alle tre tærskler og "brud alene" er testbare på begge spor (§5). Kriterium 6 og 7 trækker mod hinanden (phi −0,48 / −0,53), og kriterium 1 og 4 måler delvis det samme (+0,46 / +0,52). Spor B: afventer ejerens beslutning.
