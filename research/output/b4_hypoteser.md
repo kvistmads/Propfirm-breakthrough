@@ -173,3 +173,7 @@ Optællingerne ser ikke på udfald og lægger intet til tælleren.
 | be_WR_pct_netto_p50 | 35,4 | 36,4 |
 
 Alle tre tærskler og "brud alene" er testbare på begge spor (§5). Kriterium 6 og 7 trækker mod hinanden (phi −0,48 / −0,53), og kriterium 1 og 4 måler delvis det samme (+0,46 / +0,52). Spor B: **med**, besluttet af ejeren 2026-09-24. Trin 2 præregistreret i `research/prereg/b4_k1_trin2.md`: hovedtest (hældning af middel netto-R på scoren, pr. spor) og otte varianter, N i alt 16.
+
+### Kandidat 1 — PARKERET 2026-09-25
+
+Trin 2 (`research/output/b4_k1_trin2_laest.md`): middel netto-R falder med scoren på begge spor (β −0,034 og −0,029 R pr. trin; spor B med CI under nul). Stopreglen udløst. Alle sikringer mod at overse en edge er brugt, og ingen ændrer afgørelsen. Tælleren står på 16 og følger med. Holdout er uåbnet.
