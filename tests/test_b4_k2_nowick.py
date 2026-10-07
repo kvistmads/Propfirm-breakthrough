@@ -863,3 +863,46 @@ def test_rapporten_kan_skrives_paa_en_syntetisk_koersel():
                      & (tabel["periode"] == "2019-2023")]) == 12
     for v in k2.VARIANTER:
         assert afg["gennem"]["raekker"][v]["handler_n"] == len(virkelig[(v, "gennem")]["handler"])
+
+
+# ===========================================================================
+# Vinderraten, tillæggets §2
+# ===========================================================================
+
+class TestVinderrate:
+    """Brutto er andelen med R_brutto > 0, netto andelen med R_netto > 0, hver med
+    Wilson-CI. udfald_maal_pct er mål ramt / handler_n, uændret."""
+
+    def _handler(self) -> pd.DataFrame:
+        r_brutto = np.array([1.0, 0.05, 0.0, -1.0, -1.0])
+        omk = np.full(5, 0.1)
+        tv = np.array([False, False, False, True, False])
+        udfald = np.array([k2.MAAL, k2.TIDSEXIT, k2.TIDSEXIT, k2.STOP, k2.STOP],
+                          dtype=object)
+        return pd.DataFrame({
+            "dag": pd.to_datetime(["2023-06-1" + str(i) for i in range(5)]),
+            "udfald": udfald, "R_brutto": r_brutto, "R_netto": r_brutto - omk,
+            "tvetydig": tv, "udfald_bedste": np.where(tv, k2.MAAL, udfald),
+            "R_netto_bedste": np.where(tv, 1.0, r_brutto) - omk, "omk_R": omk})
+
+    def test_brutto_og_netto_er_andelen_over_nul(self):
+        r = k2.noegletal(self._handler())
+        assert r["win_rate_pct_brutto"] == pytest.approx(40.0)    # 1,0 og 0,05; 0 tæller ikke
+        assert r["win_rate_pct_netto"] == pytest.approx(20.0)     # kun 0,9
+        assert r["udfald_maal_pct"] == pytest.approx(20.0)
+        for navn, k in (("brutto", 2), ("netto", 1)):
+            lo, hi = k2.wilson_interval(k, 5)
+            assert r[f"win_rate_pct_{navn}_ci95_lo"] == pytest.approx(100 * lo)
+            assert r[f"win_rate_pct_{navn}_ci95_hi"] == pytest.approx(100 * hi)
+
+    def test_bedste_fald(self):
+        r = k2.noegletal(self._handler(), bedste=True)
+        assert r["win_rate_pct_brutto"] == pytest.approx(60.0)
+        assert r["win_rate_pct_netto"] == pytest.approx(40.0)
+        assert r["udfald_maal_pct"] == pytest.approx(40.0)
+
+    def test_ingen_handler(self):
+        r = k2.noegletal(self._handler().iloc[:0])
+        for navn in ("win_rate_pct_brutto", "win_rate_pct_netto",
+                     "win_rate_pct_brutto_ci95_lo", "win_rate_pct_netto_ci95_hi"):
+            assert np.isnan(r[navn])

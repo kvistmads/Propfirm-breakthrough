@@ -802,8 +802,9 @@ def middel_R(g: Grundlag, fyldt: np.ndarray, regel: str, maal_r: float
 def noegletal(handler: pd.DataFrame, bedste: bool = False) -> dict:
     """§10's kolonner for én handelstabel.
 
-    ``win_rate_pct`` er mål ramt / handler_n (§10's formel). Brutto og netto er det samme
-    tal efter den formel; de står begge, som §10 beder om.
+    Vinderraten følger tillæggets §2: ``win_rate_pct_brutto`` er andelen af handler med
+    ``R_brutto > 0``, ``win_rate_pct_netto`` andelen med ``R_netto > 0``, hver med
+    Wilson-CI. ``udfald_maal_pct`` er mål ramt / handler_n, uændret.
     """
     n = len(handler)
     r_net = handler["R_netto_bedste" if bedste else "R_netto"].to_numpy(dtype=float)
@@ -814,8 +815,10 @@ def noegletal(handler: pd.DataFrame, bedste: bool = False) -> dict:
            "censureret_n": int((udfald == CENSURERET).sum())}
     if n == 0:
         for k in ("middel_R_brutto", "middel_R_netto", "middel_R_netto_ci95_lo",
-                  "middel_R_netto_ci95_hi", "win_rate_pct_brutto", "win_rate_pct_netto",
-                  "win_rate_ci95_lo_pct", "win_rate_ci95_hi_pct", "udfald_maal_pct",
+                  "middel_R_netto_ci95_hi", "win_rate_pct_brutto",
+                  "win_rate_pct_brutto_ci95_lo", "win_rate_pct_brutto_ci95_hi",
+                  "win_rate_pct_netto", "win_rate_pct_netto_ci95_lo",
+                  "win_rate_pct_netto_ci95_hi", "udfald_maal_pct",
                   "udfald_stop_pct", "udfald_tidsexit_pct"):
             row[k] = float("nan")
         return row
@@ -823,11 +826,13 @@ def noegletal(handler: pd.DataFrame, bedste: bool = False) -> dict:
     row["middel_R_netto"] = float(r_net.mean())
     lo, hi = mean_ci_t(r_net) if n >= 2 else (float("nan"), float("nan"))
     row["middel_R_netto_ci95_lo"], row["middel_R_netto_ci95_hi"] = lo, hi
-    vundet = int((udfald == MAAL).sum())
-    w_lo, w_hi = wilson_interval(vundet, n)
-    row["win_rate_pct_brutto"] = row["win_rate_pct_netto"] = 100 * vundet / n
-    row["win_rate_ci95_lo_pct"], row["win_rate_ci95_hi_pct"] = 100 * w_lo, 100 * w_hi
-    row["udfald_maal_pct"] = 100 * vundet / n
+    for navn, r in (("brutto", r_brutto), ("netto", r_net)):
+        vundet = int((r > 0).sum())
+        w_lo, w_hi = wilson_interval(vundet, n)
+        row[f"win_rate_pct_{navn}"] = 100 * vundet / n
+        row[f"win_rate_pct_{navn}_ci95_lo"] = 100 * w_lo
+        row[f"win_rate_pct_{navn}_ci95_hi"] = 100 * w_hi
+    row["udfald_maal_pct"] = 100 * int((udfald == MAAL).sum()) / n
     row["udfald_stop_pct"] = 100 * int((udfald == STOP).sum()) / n
     row["udfald_tidsexit_pct"] = 100 * int(np.isin(udfald, (TIDSEXIT, CENSURERET)).sum()) / n
     return row
@@ -1197,7 +1202,8 @@ def _orden() -> list:
 
 def hovedtabel_md(afg: dict) -> str:
     linjer = ["| variant | handler_n | dage | tvetydig_n | censureret_n | middel_R_brutto | "
-              "middel_R_netto | CI95 | win_rate_pct_brutto | win_rate_pct_netto [Wilson] | "
+              "middel_R_netto | CI95 | win_rate_pct_brutto [Wilson] | "
+              "win_rate_pct_netto [Wilson] | "
               "mål/stop/tid_pct | N_alm p5/p50/p95 | t_v | p_FWE |", "|" + "---|" * 14]
     for v in _orden():
         r = afg["raekker"][v]
@@ -1205,9 +1211,11 @@ def hovedtabel_md(afg: dict) -> str:
             f"| {_vnavn(v)} | {_t(r['handler_n'])} | {_t(r['dage_med_handel_n'])} | "
             f"{_t(r['tvetydig_n'])} | {_t(r['censureret_n'])} | {_t(r['middel_R_brutto'], 4)} | "
             f"{_t(r['middel_R_netto'], 4)} | [{_t(r['middel_R_netto_ci95_lo'], 4)}; "
-            f"{_t(r['middel_R_netto_ci95_hi'], 4)}] | {_t(r['win_rate_pct_brutto'], 1)} | "
-            f"{_t(r['win_rate_pct_netto'], 1)} [{_t(r['win_rate_ci95_lo_pct'], 1)}; "
-            f"{_t(r['win_rate_ci95_hi_pct'], 1)}] | {_t(r['udfald_maal_pct'], 1)}/"
+            f"{_t(r['middel_R_netto_ci95_hi'], 4)}] | {_t(r['win_rate_pct_brutto'], 1)} "
+            f"[{_t(r['win_rate_pct_brutto_ci95_lo'], 1)}; "
+            f"{_t(r['win_rate_pct_brutto_ci95_hi'], 1)}] | "
+            f"{_t(r['win_rate_pct_netto'], 1)} [{_t(r['win_rate_pct_netto_ci95_lo'], 1)}; "
+            f"{_t(r['win_rate_pct_netto_ci95_hi'], 1)}] | {_t(r['udfald_maal_pct'], 1)}/"
             f"{_t(r['udfald_stop_pct'], 1)}/{_t(r['udfald_tidsexit_pct'], 1)} | "
             f"{_t(r['N_alm_p5'], 4)}/{_t(r['N_alm_p50'], 4)}/{_t(r['N_alm_p95'], 4)} | "
             f"{_t(r['t_v'], 2)} | {_t(r['p_FWE'], 4)} |")
