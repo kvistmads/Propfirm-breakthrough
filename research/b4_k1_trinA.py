@@ -186,9 +186,13 @@ def flad_tid_utc(et_tidspunkt: pd.Timestamp) -> pd.Timestamp:
 def simuler_handel(h: np.ndarray, l: np.ndarray, c: np.ndarray, entry_i: int,
                    entry_pris: float, demand: bool, risiko_pt: float,
                    be_r: float | None, cutoff_i: int, n: int,
-                   ret_fyldningsbar: bool = True) -> tuple[str, float, int, bool]:
+                   ret_fyldningsbar: bool = True,
+                   maal_r: float = RR) -> tuple[str, float, int, bool]:
     """Fra fyldningsbaren og frem, 1m-bar for 1m-bar. Returnerer (udfald, R_brutto,
     exit_i, holder).
+
+    ``maal_r`` er målet i R fra indgangen. Standardværdien er kandidat 1's 2R; kandidat 2
+    (``research/prereg/b4_k2_nowick.md`` §4e) sender 1R og 2R.
 
     ``cutoff_i`` er positionen for 14:50 CT-fladten (ekskl.), ``n`` seriens længde —
     løber vi ud over serien, er handlen censureret ved in-sample-slut, ikke tidsexit.
@@ -204,7 +208,7 @@ def simuler_handel(h: np.ndarray, l: np.ndarray, c: np.ndarray, entry_i: int,
     bar). Rammes +1R og stoppet i samme 1m-bar, gælder samme worst case som regel 4:
     stoppet antages ramt først, og den bar tæller ikke selv med i holder.
     """
-    maal = entry_pris + RR * risiko_pt if demand else entry_pris - RR * risiko_pt
+    maal = entry_pris + maal_r * risiko_pt if demand else entry_pris - maal_r * risiko_pt
     stop_niveau = entry_pris - risiko_pt if demand else entry_pris + risiko_pt
     en_r_niveau = entry_pris + risiko_pt if demand else entry_pris - risiko_pt
     be_trigger = None
@@ -229,7 +233,7 @@ def simuler_handel(h: np.ndarray, l: np.ndarray, c: np.ndarray, entry_i: int,
             continue
         maal_ramt = (hi >= maal) if demand else (lo <= maal)
         if maal_ramt:
-            return MAAL, RR, i, True
+            return MAAL, maal_r, i, True
         if (hi >= en_r_niveau) if demand else (lo <= en_r_niveau):
             holder = True
         if be_trigger is not None and not be_armet:
