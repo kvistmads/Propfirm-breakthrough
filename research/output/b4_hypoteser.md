@@ -177,3 +177,17 @@ Alle tre tærskler og "brud alene" er testbare på begge spor (§5). Kriterium 6
 ### Kandidat 1 — PARKERET 2026-09-25
 
 Trin 2 (`research/output/b4_k1_trin2_laest.md`): middel netto-R falder med scoren på begge spor (β −0,034 og −0,029 R pr. trin; spor B med CI under nul). Stopreglen udløst. Alle sikringer mod at overse en edge er brugt, og ingen ændrer afgørelsen. Tælleren står på 16 og følger med. Holdout er uåbnet.
+
+## Kandidat 2 — Nowick: lys uden væge i trendens retning
+
+**Kilde:** bard.fx, Instagram-reel set 2026-10-07 (`research/kilder/bardfx_nowick_reel_noter.md`). Et rødt lys uden topvæge i en nedtrend, eller et grønt uden bundvæge i en optrend. Limitordre på lysets åbning, når prisen inden for få lys kommer tilbage. Stop bag seneste swing, mål cirka 1:1. Påstanden om 85% vinderrate er udokumenteret.
+
+**Besluttet af ejeren 2026-10-07:**
+- MNQ 5m med trenden aflæst på daily (hovedtidsramme) og 4H (variant).
+- Signallys med nul ticks væge; trenden aflæst ved brud på swing-punkter (N = 5).
+- Retest-vindue 3, 5 eller 9 lys; nyeste signal erstatter den ventende ordre.
+- Stop bag 10-lys-ekstremen plus 2 ticks; mål 1R og 2R.
+- Én handel om dagen; rammerne fra kandidat 1 uændrede.
+- Nulmodellen er almindelige lys med væge under samme regler.
+
+12 varianter; tælleren går fra 16 til 28. Præregistreret i `research/prereg/b4_k2_nowick.md`.
