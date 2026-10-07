@@ -191,3 +191,9 @@ Trin 2 (`research/output/b4_k1_trin2_laest.md`): middel netto-R falder med score
 - Nulmodellen er almindelige lys med væge under samme regler.
 
 12 varianter; tælleren går fra 16 til 28. Præregistreret i `research/prereg/b4_k2_nowick.md`.
+
+### Kandidat 2 — PARKERET 2026-10-07
+
+Kørslen (`research/output/b4_k2_nowick_laest.md`) gav række 4 i §8: alle 12 varianter er negative netto (−0,12 til −0,20 R), og alle konfidensintervaller ligger under nul. Ved 1:1 ramte 40% målet og 45% stoppet. Lys uden væge klarede sig en smule ringere end almindelige lys under samme regler. Fyld ved berøring og bedste fald i de tvetydige minutter giver samme række. Tælleren står på 28, og holdout er uåbnet.
+
+**Læring på tværs af kandidat 1 og 2:** en limitordre tilbage ved udspringet af et stærkt lys, i trendens retning, holder omkring halvdelen af gangene på MNQ og taber netto. Nye kandidater med samme mekanik sammenlignes med disse to resultater, før de bygges.
