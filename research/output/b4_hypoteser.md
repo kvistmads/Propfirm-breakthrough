@@ -197,3 +197,15 @@ Trin 2 (`research/output/b4_k1_trin2_laest.md`): middel netto-R falder med score
 Kørslen (`research/output/b4_k2_nowick_laest.md`) gav række 4 i §8: alle 12 varianter er negative netto (−0,12 til −0,20 R), og alle konfidensintervaller ligger under nul. Ved 1:1 ramte 40% målet og 45% stoppet. Lys uden væge klarede sig en smule ringere end almindelige lys under samme regler. Fyld ved berøring og bedste fald i de tvetydige minutter giver samme række. Tælleren står på 28, og holdout er uåbnet.
 
 **Læring på tværs af kandidat 1 og 2:** en limitordre tilbage ved udspringet af et stærkt lys, i trendens retning, holder omkring halvdelen af gangene på MNQ og taber netto. Nye kandidater med samme mekanik sammenlignes med disse to resultater, før de bygges.
+
+## Kandidat 3 — vending efter åbningen
+
+**Kilde:** BKTraders, YouTube-video set 2026-10-07 (`research/kilder/bktraders_nasdaq_routine_noter.md`). Den første halve time sætter en retning. Mellem 10 og 12 New York-tid går man ind på et volatilitetslys i modsat retning. Videoens stop og mål var sat efter kontoen; her styrer markedet stop og mål, og kontoen styrer størrelsen. Mekanikken er ny i forhold til kandidat 1 og 2: et udbrud med markedsordre, ikke en limitordre der venter på en retest.
+
+**Besluttet af ejeren 2026-10-07** (svar 5 læst som A):
+- 1m, åbningens retning fra 08:30 til 09:00 CT uden tærskel.
+- Volatilitetslys med true range > k × ATR(14), hvor k er 1,0, 1,5 eller 2,0.
+- Markedsordre ved næste bar, stop 2 × ATR, mål 1,5R, én handel om dagen.
+- Nulmodeller: N-tid (tilfældigt tidspunkt) afgør, N-med (åbningens retning) forklarer.
+
+3 varianter; tælleren går fra 28 til 31. Præregistreret i `research/prereg/b4_k3_vending.md`.
