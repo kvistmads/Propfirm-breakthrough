@@ -265,3 +265,12 @@ Tælleren står på 41. Holdout er uåbnet og ukøbt. Næste skridt: præregistr
 - Retningen (H1) og nettogevinsten (H2, énsidet) testes hver for sig.
 - Holder retningen, men nettogevinsten ikke kan bevises, fortsætter vi til ruinmodel og forward-test. En Combine købes kun, hvis den samlede nedre grænse er over 0, ruinmodellen slår nulmodellen ved den, og forward-testen er bestået.
 - Holdout åbnes én gang og tæller ikke som nyt forsøg.
+
+### Kandidat 5 — PARKERET 2026-10-08 efter holdout
+
+Holdout-kørslen (`research/output/b4_k5_holdout_laest.md`) gav række 4 i §5:
+- Brutto faldt fra $74,40 til $3,65 pr. dag. Netto blev −$30,55 med CI90 [−59,68; −1,42].
+- p_H1 var 0,43, så VWAP-retningen er ikke bedre end tilfældig i 2024–2026. Alle tre år var negative.
+- Faldet fra in-sample er ikke tilfældigt (z cirka 3,0). Det passer med, at offentliggjorte mønstre svækkes.
+
+Holdout er åbnet én gang og er ikke længere ren for hypoteser om VWAP og momentum inden for dagen. Tælleren står på 41.
