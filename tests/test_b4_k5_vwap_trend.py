@@ -587,6 +587,51 @@ class TestHuller:
         assert g.n == 1 and g.info["udelukket_ingen RTH-barer_n"] == 1
 
 
+class TestUdelukkedeDageDiagnose:
+    """Tillæggets §3: de udelukkede dage rapporteres for sig og indgår ikke i middel, CI,
+    nulmodel eller §8."""
+
+    def _bygger(self) -> Bygger:
+        b = Bygger(dage=UGE)
+        for d in UGE:
+            sav(b, dag=d)
+        b.fra("09:00", 30, dag=UGE[2])               # stor bevægelse på hul-dagen
+        b.fjern("10:00", "10:14", dag=UGE[2])        # 14 manglende minutter: udelukket
+        return b
+
+    def test_diagnosen(self):
+        b = self._bygger()
+        g = _g(b)
+        assert g.n == 4 and g.df_1m is not None
+        ud = k5.udelukkede_dage(g)
+        assert len(ud) == len(k5.VARIANTER)
+        r = {(x["tf"], x["middag"]): x for x in ud}[HELE1]
+        assert r["dag"] == UGE[2] and r["grund"] == "hul over 5 min" and r["handler_n"] >= 1
+        # Positionen holdes gennem stoppet: én long fra 08:41 (P+3) til fladt.
+        gu = k5.byg_grundlag(b.df, pd.DatetimeIndex([UGE[2]]), udeluk=False)
+        h = k5.handler(gu, HELE1)
+        assert _liste(gu, h) == [(UGE[2], "08:41", "14:55", 1, "fladt")]
+        assert r["dag_netto_usd"] == pytest.approx(
+            (b.df.loc[_ct("14:55", UGE[2]), "open"] - (P + 3)) * 2 * 2 - 2.627)
+        assert r["intradag_tab_vaerste"] <= 0
+
+    def test_indgaar_ikke_i_middel_ci_nulmodel_eller_8(self):
+        b = self._bygger()
+        uden = Bygger(dage=UGE)
+        uden.df = b.df[(b.df.index < _ct("08:30", UGE[2])) | (b.df.index >= _ct("15:00", UGE[2]))]
+        with np.errstate(all="ignore"):
+            a = k5.analyse(_g(b), n_reps=20)
+            c = k5.analyse(_g(uden), n_reps=20)
+        assert a["udelukkede"] and not c["udelukkede"]
+        for v in k5.VARIANTER:
+            for x in ("middel_netto_usd_dag", "netto_ci95_lo", "netto_ci95_hi", "handler_n"):
+                assert a["tal"][v][x] == c["tal"][v][x]
+            assert np.array_equal(a["null"][v], c["null"][v])
+            assert (a["afgoerelse"]["hoved"]["raekker"][v]
+                    == c["afgoerelse"]["hoved"]["raekker"][v])
+        assert a["afgoerelse"]["hoved"]["beslutning"] == c["afgoerelse"]["hoved"]["beslutning"]
+
+
 # ===========================================================================
 # §7: σ_dag, MDE og styrke
 # ===========================================================================
@@ -675,9 +720,17 @@ class TestBeslutning:
         assert k5.beslutning(self._alle() | {self.V[0]: _r(0.05, 0.0)})["raekke"] == 2
         assert k5.beslutning(self._alle() | {self.V[0]: _r(0.0501, 0.0)})["raekke"] == 4
 
-    def test_laesning_30_blandet(self):
+    def test_tillaeg_2_blandet(self):
+        """Tillæggets §2: én variant med p_FWE ≤ 0,05 uden CI-nedre > 0 og en anden med
+        CI-nedre > 0 uden p_FWE ≤ 0,05 giver række 2, med den anden som in-sample-fund."""
         b = k5.beslutning(self._alle() | {self.V[0]: _r(0.01, -1.0), self.V[1]: _r(0.5, 1.0)})
-        assert b["raekke"] == 4
+        assert b["raekke"] == 2 and b["variant"] is None
+        assert b["kandidater"] == [self.V[0]] and b["in_sample_fund"] == [self.V[1]]
+
+    def test_tillaeg_2_raekke_1_uaendret(self):
+        b = k5.beslutning(self._alle() | {self.V[0]: _r(0.01, -1.0), self.V[1]: _r(0.5, 1.0),
+                                          self.V[2]: _r(0.02, 0.5)})
+        assert b["raekke"] == 1 and b["variant"] == self.V[2]
 
 
 class TestBreakeven:
@@ -862,6 +915,7 @@ class TestHeleKoerslen:
                             k5._rel(k5.Path(k5.__file__)): "b" * 40}}
         md = k5.skriv_md(res, meta)
         assert "Hovedtabel" in md and "Afgørelsen" in md and "Altid-long" in md
+        assert "De udelukkede dage" in md
         tabel = k5.lang_tabel(res)
         assert (tabel["tabel"] == "hoved").sum() == 2 * len(k5.VARIANTER)
         assert not any(c.startswith("_") for c in tabel.columns)

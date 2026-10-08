@@ -133,12 +133,16 @@ der kan flytte et resultat, eller hvor præregistreringen kan læses på to måd
 29. **Nominelt** (§9) er ``brutto_pt × 2 − 2,627`` uden normering. **$3,169** er
     ``2,627 + 2 × 0,5417 × 0,25 × 2 = 3,1687``. Nulmodellen flyttes med samme omkostning,
     så t_v og p_FWE er de samme som ved $2,627; kun intervallet flytter sig.
-30. **§8's række 2** læses bogstaveligt: mindst én variant med p_FWE ≤ 0,05 og ingen
-    variant med CI-nedre > 0. Har én variant p_FWE ≤ 0,05 uden CI-nedre > 0, og en anden
-    CI-nedre > 0 uden p_FWE ≤ 0,05, passer hverken række 1, 2 eller 3, og række 4 gælder.
-    **[tvivl]**
+30. **§8's række 2** er erstattet af tillæggets §2 (``b4_k5_vwap_trend_tillaeg.md``):
+    mindst én variant har p_FWE ≤ 0,05, men ingen opfylder række 1. Varianter med CI-nedre
+    > 0 uden p_FWE ≤ 0,05 skrives da op som in-sample-fund (``in_sample_fund``).
 31. **Kandidat 4's regressionstjek** (§11.3, k = 1,5 · 1/dag) køres ad kandidat 4's egen
     vej: ``k4.byg_grundlag``, ``k4.dagsforloeb`` og ``k4.handelstabel``, uændret.
+
+Tillæggets §3 (godkendt sammen med læsningerne): de dage §4h udelukker, rapporteres for sig
+pr. variant (``udelukkede_dage``). De regnes på deres eget gitter uden udelukkelse, med
+præcis samme motor: positionen holdes gennem stoppet, og udførelsen sker ved første bar
+efter det (læsning 12). De indgår ikke i middel, CI, nulmodel eller §8.
 """
 from __future__ import annotations
 
@@ -146,7 +150,7 @@ import argparse
 import math
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -166,9 +170,11 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "research" / "output"
 PREREG = ROOT / "research" / "prereg" / "b4_k5_vwap_trend.md"
 KILDE = ROOT / "research" / "kilder" / "zarattini_aziz_vwap_noter.md"
+TILLAEG = ROOT / "research" / "prereg" / "b4_k5_vwap_trend_tillaeg.md"
 # Den rigtige kørsel sker kun når disse er committet og uændrede.
 COMMITTEDE = (
-    Path(__file__).resolve(), ROOT / "tests" / "test_b4_k5_vwap_trend.py", PREREG, KILDE,
+    Path(__file__).resolve(), ROOT / "tests" / "test_b4_k5_vwap_trend.py", PREREG, TILLAEG,
+    KILDE,
     ROOT / "research" / "b4_k4_emt.py", ROOT / "research" / "b4_k3_vending.py",
     ROOT / "research" / "b4_k2_nowick.py", ROOT / "research" / "b4_k1_trinA.py",
     ROOT / "research" / "b4_k1_filtre.py", ROOT / "research" / "b4_k1_optaelling.py",
@@ -270,6 +276,7 @@ class Grundlag:
     s_min: np.ndarray
     lys: dict
     info: dict
+    df_1m: pd.DataFrame | None = field(default=None, repr=False)   # til tillæggets §3
 
     @property
     def n(self) -> int:
@@ -317,9 +324,11 @@ def _tjek_5m(df_1m: pd.DataFrame, gi: np.ndarray, t0830: np.ndarray, lys5: Lys) 
         raise ValueError("5m-lysene fra gitteret og fra data.resample.aggregate er forskellige")
 
 
-def byg_grundlag(df_1m: pd.DataFrame, dage: pd.DatetimeIndex | None = None) -> Grundlag:
+def byg_grundlag(df_1m: pd.DataFrame, dage: pd.DatetimeIndex | None = None,
+                 udeluk: bool = True) -> Grundlag:
     """Gitteret, rultjekket, udelukkelsen, VWAP, L_d og lysene. Ingen handel her.
-    ``dage`` er XNYS-dagene; standard er dem serien spænder over."""
+    ``dage`` er XNYS-dagene; standard er dem serien spænder over. ``udeluk=False`` springer
+    §4h's huller over og bruges kun til diagnosen i tillæggets §3."""
     if dage is None:
         et = k1._et_dag(df_1m.index[[0, -1]])
         dage = k1.rth_dage(et[0], et[1] + pd.Timedelta(days=1))
@@ -360,8 +369,9 @@ def byg_grundlag(df_1m: pd.DataFrame, dage: pd.DatetimeIndex | None = None) -> G
     hul = np.zeros(nd, dtype=np.int64)
     np.maximum.at(hul, dp[1:][samme], (m[1:] - m[:-1] - 1)[samme])
     grund = np.full(nd, "", dtype=object)
-    grund[hul > MAKS_HUL] = "hul over 5 min"
-    grund[foerste > FOERSTE_SENEST] = "første bar efter 08:35 CT"
+    if udeluk:
+        grund[hul > MAKS_HUL] = "hul over 5 min"
+        grund[foerste > FOERSTE_SENEST] = "første bar efter 08:35 CT"
     grund[n_bar == 0] = "ingen RTH-barer"
     inkl = np.flatnonzero(grund == "")
     n = len(inkl)
@@ -422,7 +432,7 @@ def byg_grundlag(df_1m: pd.DataFrame, dage: pd.DatetimeIndex | None = None) -> G
                     flad=n_min - FLAD_FOER_LUK, gi=gi, o=o, c=c, vwap=vwap, L=L,
                     sidste_i=sidste_i, s_o=df_1m["open"].to_numpy(dtype=float),
                     s_c=df_1m["close"].to_numpy(dtype=float), s_iid=iid, s_tid=tid,
-                    s_min=s_min, lys=lys, info=info)
+                    s_min=s_min, lys=lys, info=info, df_1m=df_1m)
 
 
 # ---------------------------------------------------------------------------
@@ -620,8 +630,8 @@ def styrke(sigma: float, n_dage: int, netto: float) -> float:
 # ---------------------------------------------------------------------------
 
 def beslutning(raekker: dict, alfa: float = 0.05) -> dict:
-    """§8, mekanisk (læsning 30). ``raekker`` er {variant: {"p_FWE", "ci95_lo"}}. Første
-    række der passer, gælder."""
+    """§8 med tillæggets §2, mekanisk. ``raekker`` er {variant: {"p_FWE", "ci95_lo"}}.
+    Første række der passer, gælder."""
     sig = {v for v, r in raekker.items() if r["p_FWE"] <= alfa}
     ci = {v for v, r in raekker.items() if r["ci95_lo"] > 0}
     begge = [v for v in raekker if v in sig and v in ci]
@@ -629,8 +639,9 @@ def beslutning(raekker: dict, alfa: float = 0.05) -> dict:
         frosset = max(begge, key=lambda v: raekker[v]["ci95_lo"])
         return {"raekke": 1, "variant": frosset, "kandidater": begge,
                 "tekst": "Varianten fryses"}
-    if sig and not ci:
+    if sig:
         return {"raekke": 2, "variant": None, "kandidater": [v for v in raekker if v in sig],
+                "in_sample_fund": [v for v in raekker if v in ci and v not in sig],
                 "tekst": "Parkeres som \"VWAP-retningen bærer, men betaler ikke "
                          "omkostningen\""}
     if not sig and ci:
@@ -886,7 +897,33 @@ def analyse(g: Grundlag, n_reps: int = NRET_REPS) -> dict:
         tal[v]["MDE_CI"] = mde(sig, g.n, Z_CI)
     return {"g": g, "handler": hd, "tal": tal, "null": null, "afgoerelse": afg,
             "diagnoser": diagnoser(g, hd, tal), "optaelling": optaelling(g, hd),
-            "n_reps": n_reps, "nret_s": nret_s}
+            "udelukkede": udelukkede_dage(g), "n_reps": n_reps, "nret_s": nret_s}
+
+
+def udelukkede_dage(g: Grundlag) -> list[dict]:
+    """Tillæggets §3: pr. variant og udelukket dag ``dag_netto_usd`` ved dagens niveau og
+    nominelt, og største tab inden for dagen. Dagene regnes på deres eget gitter; intet
+    herfra når middel, CI, nulmodel eller §8. Dage uden RTH-barer har intet at vise."""
+    u = g.udelukket[g.udelukket["grund"] != "ingen RTH-barer"]
+    if g.df_1m is None or len(u) == 0:
+        return []
+    gu = byg_grundlag(g.df_1m, pd.DatetimeIndex(u["dag"]), udeluk=False)
+    grund = dict(zip(pd.DatetimeIndex(u["dag"]), u["grund"]))
+    ud = []
+    for v in VARIANTER:
+        h = handler(gu, v)
+        res = resultat(gu, h)
+        netto = pr_dag(gu, h, res["netto_usd"])
+        nom = pr_dag(gu, h, res["nominelt_usd"])
+        tab = stoerste_tab(gu, h, res)
+        k = handler_pr_dag(gu, h)
+        for r in range(gu.n):
+            d = gu.dage[gu.inkl[r]]
+            ud.append({"tf": v[0], "middag": v[1], "dag": str(d.date()), "grund": grund[d],
+                       "handler_n": int(k[r]), "dag_netto_usd": float(netto[r]),
+                       "dag_netto_usd_nominelt": float(nom[r]),
+                       "intradag_tab_vaerste": float(tab[r])})
+    return ud
 
 
 def koer(n_reps: int = NRET_REPS) -> dict:
@@ -1117,6 +1154,9 @@ def hovedtabel_md(res: dict) -> str:
 def _beslutning_md(navn: str, afg: dict) -> str:
     b = afg["beslutning"]
     v = f" Frosset variant: **{_vnavn(b['variant'])}**." if b["variant"] is not None else ""
+    if b.get("in_sample_fund"):
+        v += (" In-sample-fund (CI-nedre > 0 uden p_FWE ≤ 0,05, tillæggets §2): "
+              + ", ".join(_vnavn(x) for x in b["in_sample_fund"]) + ".")
     return f"**{navn}: række {b['raekke']}: {b['tekst']}.**{v}\n"
 
 
@@ -1197,6 +1237,15 @@ def skriv_md(res: dict, meta: dict) -> str:
                          _usd(dv[v]["long_brutto_usd"]), _usd(dv[v]["short_brutto_usd"]),
                          f"{_usd(dv[v]['long_minus_short'])} "
                          f"{_ci_txt(dv[v]['long_minus_short_ci95_lo'], dv[v]['long_minus_short_ci95_hi'])}"]),
+        "## De udelukkede dage, tillæggets §3 (diagnose, ændrer intet)\n",
+        "Circuit breaker-dagene i marts 2020, udelukket efter §4h. Regnet med samme motor; "
+        "positionen holdes gennem stoppet og udføres ved første bar efter det. Ikke med i "
+        "middel, CI, nulmodel eller §8.\n",
+        "| variant | dag | handler_n | netto $ ved dagens niveau | nominelt $ | største tab "
+        "inden for dagen $ |\n|---|---|---|---|---|---|\n" +
+        "".join(f"| {_vnavn((r['tf'], r['middag']))} | {r['dag']} | {_t(r['handler_n'])} | "
+                f"{_usd(r['dag_netto_usd'])} | {_usd(r['dag_netto_usd_nominelt'])} | "
+                f"{_usd(r['intradag_tab_vaerste'])} |\n" for r in res["udelukkede"]),
         "## Altid-long, §6 (forklarer, ændrer intet)\n",
         f"Køb 08:31 CT, sælg ved fladt, {_t(al['dage_n'])} dage: middel netto "
         f"{_usd(al['middel_netto_usd_dag'])} $/dag {_ci_txt(al['ci95_lo'], al['ci95_hi'])}.\n",
@@ -1234,6 +1283,7 @@ def lang_tabel(res: dict) -> pd.DataFrame:
                          "halvtime_ny": _hhmm_ny(kk), "brutto_usd_dag": x})
     rows += [{"tabel": "aar", **r} for r in res["diagnoser"]["aar"]]
     rows.append({"tabel": "altid_long", **res["diagnoser"]["altid_long"]})
+    rows += [{"tabel": "udelukket_dag", **r} for r in res["udelukkede"]]
     optael = optaelling_csv(res["optaelling"]).rename(columns={"tabel": "optaelling"})
     optael.insert(0, "tabel", "optaelling")
     return pd.concat([pd.DataFrame(rows), optael], ignore_index=True)
