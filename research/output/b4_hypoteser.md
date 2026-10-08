@@ -209,3 +209,9 @@ Kørslen (`research/output/b4_k2_nowick_laest.md`) gav række 4 i §8: alle 12 v
 - Nulmodeller: N-tid (tilfældigt tidspunkt) afgør, N-med (åbningens retning) forklarer.
 
 3 varianter; tælleren går fra 28 til 31. Præregistreret i `research/prereg/b4_k3_vending.md`.
+
+### Kandidat 3 — PARKERET 2026-10-08
+
+Kørslen (`research/output/b4_k3_vending_laest.md`) gav række 4 i §8. Brutto ligger modellen omkring nul (−0,01 til +0,02 R), og netto taber den −0,05 til −0,07 R. Ingen variant slår et tilfældigt tidspunkt (p_FWE 0,25–0,97). Fortsættelse i åbningens retning er lige så god eller dårlig som vending. Tælleren står på 31, og holdout er uåbnet.
+
+**Læring på tværs af kandidat 1–3:** simple prismønstre på MNQ inden for dagen har givet brutto omkring nul og netto tab svarende til omkostningen. En ny kandidat skal have en begrundet forventning om et bruttoafkast over cirka 0,05–0,10 R pr. handel, før den bygges.
