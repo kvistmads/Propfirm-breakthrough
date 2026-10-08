@@ -233,8 +233,19 @@ Kørslen (`research/output/b4_k3_vending_laest.md`) gav række 4 i §8. Brutto l
 
 Kørslen (`research/output/b4_k4_emt_laest.md`) gav række 4 i §8. Alle 6 varianter er negative netto (−0,09 til −0,24 R) og brutto (−0,01 til −0,14 R). Stoppet bag vægen rammes i 69–77% af handlerne. Udmattelseslyset slår ikke et tilfældigt strakt lys i samme time. At handle med strækket (N-mod) er bedre end imod det i alle 6 varianter, men N-mod ligger selv omkring 0. Tælleren står på 37, og holdout er uåbnet.
 
-## Kandidat 5 (planlagt) — VWAP-trend efter Zarattini og Aziz (2023)
+## Kandidat 5 — VWAP-trend efter Zarattini og Aziz (2023)
 
-Ejerens ønske 2026-10-08: test den dokumenterede, trendfølgende VWAP-strategi (long over VWAP, short under) ved siden af EMT. Præregistreres, når artiklens præcise regler er læst (SSRN 4631351).
+**Kilde:** SSRN 4631351, hele artiklen læst 2026-10-08 (`research/kilder/zarattini_aziz_vwap_noter.md`). Long over VWAP og short under, vend ved hver 1m-lukning på den anden side, altid i markedet og fladt ved dagens slut. Artiklen fandt Sharpe 2,1 på QQQ 2018–2023. Udkastet med analysen ligger i `research/prereg/b4_k5_vwap_trend_udkast.md`.
 
-Artiklen er læst 2026-10-08 (`research/kilder/zarattini_aziz_vwap_noter.md`). Udkast med analyse og ubesvarede spørgsmål ligger i `research/prereg/b4_k5_vwap_trend_udkast.md`. Det afventer, at kandidat 4 er læst.
+**Besluttet af ejeren 2026-10-08:**
+- Handel hele RTH-dagen fra 08:31 CT. Fladt 14:55 CT (21:55 dansk tid), anbefalet af overblikssessionen efter ejerens spørgsmål om 21:55 eller 21:59.
+- Alle vendinger, som i artiklen.
+- 1m og 5m × hele dagen eller uden 11:00–14:00 CT.
+- Nulmodel: samme handler med tilfældig retning.
+- Mål: netto-dollar pr. dag pr. MNQ. Fryses kun ved p_FWE ≤ 0,05 og CI-nedre > 0. Bagefter afgør ruinmodellen sizingen.
+
+**Overblikssessionens præciseringer:** målet regnes ved dagens niveau (NQ 29.138), fordi omkostningen er fast i dollar, mens kursbevægelserne vokser med niveauet. Ingen ekstra slippage ud over $2,627, fordi alle ordrer er markedsordrer på et lys' åbning.
+
+4 varianter; tælleren går fra 37 til 41. Præregistreret i `research/prereg/b4_k5_vwap_trend.md`.
+
+**Læring på tværs af kandidat 1–4:** fortsættelse slog tilbageløb i kandidat 1, 2 og 4, men lå selv omkring 0 netto. Kandidat 5 tester fortsættelse med en dokumenteret regel fra litteraturen. Omkostningen er cirka lige så stor som artiklens gevinst pr. handel. Artiklens periode overlapper vores in-sample, så den rene test er holdout.
