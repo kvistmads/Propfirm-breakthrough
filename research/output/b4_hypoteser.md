@@ -215,3 +215,20 @@ Kørslen (`research/output/b4_k2_nowick_laest.md`) gav række 4 i §8: alle 12 v
 Kørslen (`research/output/b4_k3_vending_laest.md`) gav række 4 i §8. Brutto ligger modellen omkring nul (−0,01 til +0,02 R), og netto taber den −0,05 til −0,07 R. Ingen variant slår et tilfældigt tidspunkt (p_FWE 0,25–0,97). Fortsættelse i åbningens retning er lige så god eller dårlig som vending. Tælleren står på 31, og holdout er uåbnet.
 
 **Læring på tværs af kandidat 1–3:** simple prismønstre på MNQ inden for dagen har givet brutto omkring nul og netto tab svarende til omkostningen. En ny kandidat skal have en begrundet forventning om et bruttoafkast over cirka 0,05–0,10 R pr. handel, før den bygges.
+
+## Kandidat 4 — EMT: tilbage til VWAP efter et udmattelseslys
+
+**Kilde:** Instagram-reel set 2026-10-08 (`research/kilder/emt_reel_noter.md`). Når prisen er strakt væk fra VWAP og 9 EMA, venter man på et lys med en kraftig væge og går imod strækket på bruddet af lyset. Stoppet sidder bag vægen, målet er VWAP. Ejeren troede først, at der blev brugt EMA 200; reelen siger 9 EMA.
+
+**Besluttet af ejeren 2026-10-08:**
+- VWAP med anker kl. 17:00 CT og 9 EMA, 5m.
+- Stræk på k × ATR, hvor k er 1,5, 2,0 eller 3,0.
+- Væge på mindst 50%. Stop-ordre i næste lys, stop 2 ticks bag vægen.
+- Målet er VWAP, opdateret løbende. 1 eller 2 handler om dagen.
+- Spring over under 1R (overblikssessionens anbefaling, som ejeren hældede til).
+
+6 varianter; tælleren går fra 31 til 37. Præregistreret i `research/prereg/b4_k4_emt.md`.
+
+## Kandidat 5 (planlagt) — VWAP-trend efter Zarattini og Aziz (2023)
+
+Ejerens ønske 2026-10-08: test den dokumenterede, trendfølgende VWAP-strategi (long over VWAP, short under) ved siden af EMT. Præregistreres, når artiklens præcise regler er læst (SSRN 4631351).
