@@ -33,7 +33,8 @@ Pris hentes kun gennem ``data.holdout.load_in_sample``; holdout åbnes ikke.
 6. ``simuler_handel_maal`` og ``handel``: handlen fra fyldningsbaren med VWAP-målet minut
    for minut (modellen, N-tid) eller et konstant mål (N-mod). Hver handel regnes én gang og
    slås op.
-7. ``ntid_variant`` og ``ntid_traek``: nulmodellen N-tid (§6).
+7. ``ntid_variant`` og ``ntid_traek``: nulmodellen N-tid (§6), matchet pr. dag,
+   retning og klokketime (tillæg §2).
 8. ``k2.westfall_young`` og ``beslutning``: §7 og §8.
 
 ## Læsninger — valgt af Code, skrevet op før kørslen
@@ -136,6 +137,13 @@ der kan flytte et resultat, er mærket **[spørgsmål]**.
     (Šidák 6). Det ukorrigerede (2,4865) står ved siden af.
 28. **En rul mellem 08:30 og 14:50 CT** springer dagen over, og den tælles. Ventet 0, fordi
     alle 19 ruller ligger kl. 18:00-19:01 CT (kandidat 3's læsning 5).
+29. **N-tid matches også på klokketimen** (tillæg §2, supplerer læsning 17 og 20): hver
+    model-handel matches i (ET-dag, retning, klokketime CT for udmattelseslysets start).
+    Har timen ingen kandidat i puljen, bruges den nærmeste time med kandidater samme dag
+    og retning, og ved lige afstand den tidligste. Det tælles (``nabotime_n``,
+    ``nabotime_lige_langt_n``). Model-handler der ender i samme time, deler celle og
+    trækkes uden tilbagelægning. Har dagen ingen kandidater i retningen, er cellen tom og
+    tælles som før.
 """
 from __future__ import annotations
 
@@ -757,8 +765,8 @@ def ntid_pulje(g: Grundlag, k: float) -> np.ndarray:
 
 @dataclass
 class NtidVariant:
-    """For én variant: cellerne (ET-dag, retning) med modellens m handler og puljens
-    kandidater, celle for celle. Fast gennem alle gentagelser."""
+    """For én variant: cellerne (ET-dag, retning, klokketime) med modellens m handler og
+    puljens kandidater, celle for celle. Fast gennem alle gentagelser."""
     m: np.ndarray
     start: np.ndarray
     laengde: np.ndarray
@@ -768,17 +776,34 @@ class NtidVariant:
 
 
 def ntid_variant(g: Grundlag, k: float, model: Forloeb) -> NtidVariant:
-    """§6 og læsning 17: matching pr. (ET-dag, retning)."""
+    """§6, læsning 17 og 29: matching pr. (ET-dag, retning, klokketime CT), ellers den
+    nærmeste time med kandidater samme dag og retning."""
     pulje = ntid_pulje(g, k)
     dp, lg = g.a("dag_pos"), g.a(f"long_{TILBAGE}").astype(bool)
-    celler = pd.DataFrame({"dag": dp[model.raekke], "long": lg[model.raekke]}).groupby(
-        ["dag", "long"], sort=True).size()
-    pdf = pd.DataFrame({"r": pulje, "dag": dp[pulje], "long": lg[pulje]})
+    time_ = g.a("minut") // 60
+    pdf = pd.DataFrame({"r": pulje, "dag": dp[pulje], "long": lg[pulje], "time": time_[pulje]})
     grupper = {key: grp["r"].to_numpy(dtype=np.int64)
-               for key, grp in pdf.groupby(["dag", "long"], sort=False)}
+               for key, grp in pdf.groupby(["dag", "long", "time"], sort=False)}
+    timer: dict = {}
+    for (d, lo, t) in grupper:
+        timer.setdefault((d, lo), []).append(int(t))
+    effektiv, nabo, lige = [], 0, 0
+    for d, lo, t0 in zip(dp[model.raekke], lg[model.raekke], time_[model.raekke]):
+        mulige = timer.get((d, lo), [])
+        t = int(t0)
+        if mulige and t not in mulige:
+            afst = min(abs(h - t) for h in mulige)
+            naermeste = sorted(h for h in mulige if abs(h - t) == afst)
+            nabo += 1
+            lige += len(naermeste) > 1
+            t = naermeste[0]
+        effektiv.append(t)
+    celler = pd.DataFrame({"dag": dp[model.raekke], "long": lg[model.raekke],
+                           "time": np.asarray(effektiv, dtype=np.int64)}).groupby(
+        ["dag", "long", "time"], sort=True).size()
     m_l, l_l, dele, faste, for_faa_dage = [], [], [], [], set()
-    for (d, lo), m in celler.items():
-        c = grupper.get((d, lo), np.zeros(0, dtype=np.int64))
+    for (d, lo, t), m in celler.items():
+        c = grupper.get((d, lo, t), np.zeros(0, dtype=np.int64))
         if m > 2:
             raise ValueError("højst to handler om dagen")
         m_l.append(int(m))
@@ -795,7 +820,8 @@ def ntid_variant(g: Grundlag, k: float, model: Forloeb) -> NtidVariant:
             "pulje_paa_modeldage_n": int(np.isin(dp[pulje], dp[model.raekke]).sum()),
             "modelhandler_n": model.n, "celler_n": len(m_a),
             "celler_for_faa_n": int((l_a < m_a).sum()), "dage_for_faa_n": len(for_faa_dage),
-            "manglende_n": int(np.maximum(m_a - l_a, 0).sum())}
+            "manglende_n": int(np.maximum(m_a - l_a, 0).sum()),
+            "nabotime_n": nabo, "nabotime_lige_langt_n": int(lige)}
     return NtidVariant(m=m_a, start=(np.cumsum(l_a) - l_a).astype(np.int64),
                        laengde=l_a, pulje=pulje_flad,
                        faste=(np.concatenate(faste).astype(np.int64) if faste
@@ -1059,6 +1085,26 @@ def _tid(minutter: np.ndarray) -> dict:
     return {f"signaltid_p{q}": _minut(minutter, q) for q in (10, 50, 90)}
 
 
+def _vaegtet_minut(x, w, q) -> float:
+    """Empirisk kvantil med vægte (``inverted_cdf``): det første tidspunkt hvor den
+    kumulerede vægt når q%."""
+    x, w = np.asarray(x, dtype=float), np.asarray(w, dtype=float)
+    if len(x) == 0 or w.sum() <= 0:
+        return float("nan")
+    o = np.argsort(x, kind="stable")
+    kum = np.cumsum(w[o]) / w.sum()
+    return float(x[o][np.searchsorted(kum, q / 100 - 1e-12, side="left")])
+
+
+def ntid_tidsprofil(g: Grundlag, nv: NtidVariant) -> dict:
+    """Tillæg §4.2: signaltiden for N-tid's trækning, som forventning. En kandidat i en
+    celle med L kandidater og m model-handler trækkes med sandsynlighed min(1, m/L).
+    Ingen trækning og ingen simulering."""
+    w = np.repeat(np.minimum(1.0, nv.m / np.maximum(nv.laengde, 1)), nv.laengde)
+    mi = g.a("minut")[nv.pulje]
+    return {f"traek_signaltid_p{q}": _vaegtet_minut(mi, w, q) for q in (10, 50, 90)}
+
+
 def optaelling(g: Grundlag) -> dict:
     """§11.4: pr. variant strakte lys, udmattelseslys, udløste ordrer, 1R-reglen, handler_n,
     RR og dermed σ_R og MDE, risiko, omkostning og signaltid. Det samme for N-mod og N-tid's
@@ -1109,7 +1155,9 @@ def optaelling(g: Grundlag) -> dict:
                      **nv.tael, "pulje_long_n": int(long_t[pulje].sum()),
                      "pulje_short_n": int((~long_t[pulje]).sum()),
                      **_rr_raekke(rr0[pulje]), **_tid(minut[pulje]),
-                     "pulje_risiko_pt_p50": _p(g.a(f"risiko0_{TILBAGE}")[pulje], 50)})
+                     "pulje_risiko_pt_p50": _p(g.a(f"risiko0_{TILBAGE}")[pulje], 50),
+                     **{f"model_signaltid_p{q}": _minut(minut[model_f.raekke], q)
+                        for q in (10, 50, 90)}, **ntid_tidsprofil(g, nv)})
     return {"serie": dict(g.info), "varianter": varianter, "aar": aar, "ntid": ntid}
 
 
@@ -1228,9 +1276,9 @@ def optaelling_md(o: dict, meta: dict, kun_tabeller: bool = False) -> str:
                     f"{_tre(r, 'omk_R_netto', 3)} | {_t(r['kontrakter_loftet_n'])} |")
     dele += ["", "## N-tid's pulje, §6\n",
              "Strakte lys ved samme k uanset væge, med lys i+1 i vinduet, udløst i i+1 og "
-             "bestået 1R-reglen (læsning 18). Matching pr. (ET-dag, retning) (læsning 17). "
-             "`celler for få` er celler med færre kandidater end modellens handler; så "
-             "bruges alle.\n",
+             "bestået 1R-reglen (læsning 18). Matching pr. (ET-dag, retning, klokketime CT), "
+             "ellers nærmeste time med kandidater (læsning 17 og 29, tillæg §2). `celler "
+             "for få` er celler med færre kandidater end modellens handler; så bruges alle.\n",
              "| variant | strakte lys | i+1 i vinduet | udløst | under 1R | kontrakter 0 | "
              "**pulje** | heraf på modeldage | long/short | modelhandler | celler | celler for "
              "få | dage for få | manglende | RR p10/p50/p90 | signaltid p10/p50/p90 |",
@@ -1244,6 +1292,17 @@ def optaelling_md(o: dict, meta: dict, kun_tabeller: bool = False) -> str:
             f"{_t(r['pulje_long_n'])}/{_t(r['pulje_short_n'])} | {_t(r['modelhandler_n'])} | "
             f"{_t(r['celler_n'])} | {_t(r['celler_for_faa_n'])} | {_t(r['dage_for_faa_n'])} | "
             f"{_t(r['manglende_n'])} | {_tre(r, 'RR')} | {_tre(r, 'signaltid', tid=True)} |")
+    dele += ["", "## N-tid's tidsprofil efter matching på klokketimen, tillæg §2\n",
+             "Signaltid for modellens handler og for N-tid's trækning (forventet: en kandidat "
+             "trækkes med sandsynlighed min(1, m/L) i sin celle). Puljens profil står i "
+             "tabellen ovenfor.\n",
+             "| variant | model p10/p50/p90 | N-tid-trækning p10/p50/p90 | matchet til nabotime "
+             "| heraf lige langt |", "|---|---|---|---|---|"]
+    for r in o["ntid"]:
+        dele.append(f"| {_vnavn((r['k'], r['pr_dag']))} | "
+                    f"{_tre(r, 'model_signaltid', tid=True)} | "
+                    f"{_tre(r, 'traek_signaltid', tid=True)} | {_t(r['nabotime_n'])} | "
+                    f"{_t(r['nabotime_lige_langt_n'])} |")
     model = [r for r in o["varianter"] if r["model"] == "EMT"]
     ok = all(r["betingelse_ok"] for r in model)
     dele += ["", "## Betingelsen i §7\n",

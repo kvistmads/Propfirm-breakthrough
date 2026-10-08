@@ -746,6 +746,76 @@ class TestNtid:
             assert np.isfinite(rep[v]["m"])
 
 
+class TestNtidKlokketime:
+    """Tillæg §2: N-tid matches i samme ET-dag, retning og klokketime CT; er timen tom,
+    bruges den nærmeste time med kandidater, og det tælles. Puljen styres direkte, så
+    testen kun handler om matchingen."""
+
+    def _model(self, g, *kl):
+        r = np.array([_r(g, x) for x in kl], dtype=np.int64)
+        return k4.Forloeb(r, *(np.zeros(len(r)) for _ in range(5)), tael={})
+
+    def _nv(self, monkeypatch, g, pulje_kl, model_kl):
+        pulje = np.array([_r(g, x) for x in pulje_kl], dtype=np.int64)
+        monkeypatch.setattr(k4, "ntid_pulje", lambda g_, k: pulje)
+        return k4.ntid_variant(g, 1.5, self._model(g, *model_kl))
+
+    def _trukket(self, g, nv, reps=80):
+        ud = set()
+        for rep in range(reps):
+            r = k4.ntid_traek(nv, np.random.default_rng([7, rep]))
+            assert len(r) == len(np.unique(r))
+            ud |= set(_kl(g, r))
+        return ud
+
+    def test_samme_time(self, monkeypatch):
+        """Fladt: alle lys har samme retning. Modellen kl. 09:20 trækker kun fra 9-timen."""
+        g = _g(Bygger())
+        nv = self._nv(monkeypatch, g, ("09:05", "09:40", "10:10", "11:00"), ("09:20",))
+        assert nv.tael["nabotime_n"] == 0 and nv.tael["celler_n"] == 1
+        assert self._trukket(g, nv) == {"09:05", "09:40"}
+
+    def test_naermeste_time_naar_timen_er_tom(self, monkeypatch):
+        g = _g(Bygger())
+        nv = self._nv(monkeypatch, g, ("09:05", "09:40", "12:10"), ("10:20",))
+        assert nv.tael["nabotime_n"] == 1 and nv.tael["nabotime_lige_langt_n"] == 0
+        assert self._trukket(g, nv) == {"09:05", "09:40"}
+
+    def test_lige_langt_giver_den_tidligste(self, monkeypatch):
+        g = _g(Bygger())
+        nv = self._nv(monkeypatch, g, ("09:05", "11:10", "11:40"), ("10:20",))
+        assert nv.tael["nabotime_n"] == 1 and nv.tael["nabotime_lige_langt_n"] == 1
+        assert self._trukket(g, nv) == {"09:05"}
+
+    def test_handler_i_samme_time_deler_celle(self, monkeypatch):
+        """To model-handler 10:20 og 10:40, tom 10-time: begge går til 9-timen og trækkes
+        uden tilbagelægning fra den."""
+        g = _g(Bygger())
+        nv = self._nv(monkeypatch, g, ("09:05", "09:30", "09:40", "13:10"),
+                      ("10:20", "10:40"))
+        assert nv.tael["celler_n"] == 1 and list(nv.m) == [2]
+        assert nv.tael["nabotime_n"] == 2
+        assert self._trukket(g, nv) == {"09:05", "09:30", "09:40"}
+
+    def test_retningen_gaelder_foer_timen(self, monkeypatch):
+        """Hovedscenariet: 9-timens lys er short, fra 10:00 long. En long model-handler
+        kl. 10:05 matches med long-kandidaten 10:30, aldrig med 9-timens shorts."""
+        g = _g(hoved())
+        nv = self._nv(monkeypatch, g, ("09:15", "09:55", "10:30"), ("10:05",))
+        assert nv.tael["nabotime_n"] == 0
+        assert self._trukket(g, nv) == {"10:30"}
+        nv = self._nv(monkeypatch, g, ("09:15", "09:55"), ("10:05",))
+        assert nv.tael["celler_for_faa_n"] == 1 and nv.tael["nabotime_n"] == 0
+        assert self._trukket(g, nv) == set()
+
+    def test_tidsprofilen(self, monkeypatch):
+        g = _g(Bygger())
+        nv = self._nv(monkeypatch, g, ("09:05", "09:40", "12:10"), ("09:20", "12:30"))
+        tp = k4.ntid_tidsprofil(g, nv)
+        # Vægte: 09:05 og 09:40 1/2 hver, 12:10 1; kumuleret 25%, 50%, 100%.
+        assert [tp[f"traek_signaltid_p{q}"] for q in (10, 50, 90)] == [545, 580, 730]
+
+
 # ===========================================================================
 # §11.2 test 12 — N-mod spejlet
 # ===========================================================================
