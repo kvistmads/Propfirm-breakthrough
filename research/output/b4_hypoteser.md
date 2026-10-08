@@ -259,3 +259,9 @@ Kørslen (`research/output/b4_k5_vwap_trend_laest.md`) gav række 1 i §8. "1m �
 - **Topstep-risiko:** største tab inden for en dag var $2.830 med 1 MNQ, mod en MLL på $2.000.
 
 Tælleren står på 41. Holdout er uåbnet og ukøbt. Næste skridt: præregistrering af holdout-testen, køb af data og en ruinmodel for daglig P&L.
+
+**Holdout-testen, præregistreret 2026-10-08** (`research/prereg/b4_k5_holdout.md`, ejerens svar 1A–4A):
+- MNQ 1m fra 2024-01-02 til 2026-09-30 købes for højst $15.
+- Retningen (H1) og nettogevinsten (H2, énsidet) testes hver for sig.
+- Holder retningen, men nettogevinsten ikke kan bevises, fortsætter vi til ruinmodel og forward-test. En Combine købes kun, hvis den samlede nedre grænse er over 0, ruinmodellen slår nulmodellen ved den, og forward-testen er bestået.
+- Holdout åbnes én gang og tæller ikke som nyt forsøg.
