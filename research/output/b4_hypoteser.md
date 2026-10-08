@@ -249,3 +249,13 @@ Kørslen (`research/output/b4_k4_emt_laest.md`) gav række 4 i §8. Alle 6 varia
 4 varianter; tælleren går fra 37 til 41. Præregistreret i `research/prereg/b4_k5_vwap_trend.md`.
 
 **Læring på tværs af kandidat 1–4:** fortsættelse slog tilbageløb i kandidat 1, 2 og 4, men lå selv omkring 0 netto. Kandidat 5 tester fortsættelse med en dokumenteret regel fra litteraturen. Omkostningen er cirka lige så stor som artiklens gevinst pr. handel. Artiklens periode overlapper vores in-sample, så den rene test er holdout.
+
+### Kandidat 5 — FROSSET 2026-10-08: 1m · uden middag
+
+Kørslen (`research/output/b4_k5_vwap_trend_laest.md`) gav række 1 i §8. "1m · uden middag" har netto $41,07 pr. dag pr. MNQ ved dagens niveau, CI95 [9,02; 73,12], og p_FWE 0,0020 mod samme handler med tilfældig retning. Brutto gentager artiklen: cirka 1 bp pr. handel, gevinst kl. 9:30–11:30 og 15–16 New York-tid.
+
+- **Solidt:** VWAP-retningen bærer (t omkring 4 på 1m).
+- **Tyndt:** nettogevinsten. Den holder ved $3,169 (CI-nedre +2,01), men nominelt ved det historiske niveau ligger den omkring 0 (−2,64). 2023 var negativt. Gevinsten kommer fra de volatile år og få store dage.
+- **Topstep-risiko:** største tab inden for en dag var $2.830 med 1 MNQ, mod en MLL på $2.000.
+
+Tælleren står på 41. Holdout er uåbnet og ukøbt. Næste skridt: præregistrering af holdout-testen, køb af data og en ruinmodel for daglig P&L.
