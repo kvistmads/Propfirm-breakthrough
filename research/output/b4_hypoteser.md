@@ -229,6 +229,10 @@ Kørslen (`research/output/b4_k3_vending_laest.md`) gav række 4 i §8. Brutto l
 
 6 varianter; tælleren går fra 31 til 37. Præregistreret i `research/prereg/b4_k4_emt.md`.
 
+### Kandidat 4 — PARKERET 2026-10-08
+
+Kørslen (`research/output/b4_k4_emt_laest.md`) gav række 4 i §8. Alle 6 varianter er negative netto (−0,09 til −0,24 R) og brutto (−0,01 til −0,14 R). Stoppet bag vægen rammes i 69–77% af handlerne. Udmattelseslyset slår ikke et tilfældigt strakt lys i samme time. At handle med strækket (N-mod) er bedre end imod det i alle 6 varianter, men N-mod ligger selv omkring 0. Tælleren står på 37, og holdout er uåbnet.
+
 ## Kandidat 5 (planlagt) — VWAP-trend efter Zarattini og Aziz (2023)
 
 Ejerens ønske 2026-10-08: test den dokumenterede, trendfølgende VWAP-strategi (long over VWAP, short under) ved siden af EMT. Præregistreres, når artiklens præcise regler er læst (SSRN 4631351).
