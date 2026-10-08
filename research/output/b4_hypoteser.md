@@ -232,3 +232,5 @@ Kørslen (`research/output/b4_k3_vending_laest.md`) gav række 4 i §8. Brutto l
 ## Kandidat 5 (planlagt) — VWAP-trend efter Zarattini og Aziz (2023)
 
 Ejerens ønske 2026-10-08: test den dokumenterede, trendfølgende VWAP-strategi (long over VWAP, short under) ved siden af EMT. Præregistreres, når artiklens præcise regler er læst (SSRN 4631351).
+
+Artiklen er læst 2026-10-08 (`research/kilder/zarattini_aziz_vwap_noter.md`). Udkast med analyse og ubesvarede spørgsmål ligger i `research/prereg/b4_k5_vwap_trend_udkast.md`. Det afventer, at kandidat 4 er læst.
