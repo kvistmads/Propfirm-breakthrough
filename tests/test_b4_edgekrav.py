@@ -173,13 +173,28 @@ def test_7_gebyrer():
     assert [b.abonnement_blokke(d) for d in (1, 21, 22, 42, 43)] == [1, 1, 2, 2, 3]
     assert b.api_gebyr(252) == pytest.approx(12 * 14.50)
 
-    # 43 Combine-dage, DLL dag 9 og brud dag 10: abonnement dag 1, 22, 43; ét reset;
-    # API 3 blokke.
+    # Tillægget §2.2. 43 Combine-dage uden reset: betaling dag 1, 22 og 43; API 3 blokke.
     X = np.zeros((1, 43))
+    res = b.simuler_aar(0.0, 1.0, 1.0, None, horisont=43, X_fast=X, M_fast=X)
+    assert res["gebyr"][0] == pytest.approx(3 * 49 + 3 * 14.50)
+
+    # DLL dag 9 og brud dag 10: start dag 1, reset dag 10 erstatter dag 22's betaling,
+    # næste betaling dag 31 (21 dage efter resettet), ingen dag 43. API 3 blokke.
     X[0, 8], X[0, 9] = -1000.0, -1100.0
     res = b.simuler_aar(0.0, 1.0, 1.0, None, horisont=43, X_fast=X, M_fast=np.minimum(0.0, X))
     assert res["resets"][0] == 1
-    assert res["gebyr"][0] == pytest.approx(3 * 49 + 49 + 3 * 14.50)
+    assert res["gebyr"][0] == pytest.approx(3 * 49 + 3 * 14.50)
+    res30 = b.simuler_aar(0.0, 1.0, 1.0, None, horisont=30, X_fast=X[:, :30],
+                          M_fast=np.minimum(0.0, X[:, :30]))
+    assert res30["gebyr"][0] == pytest.approx(2 * 49 + 2 * 14.50)
+
+    # To resets kort efter hinanden: hvert reset er en betaling, ingen månedsbetaling imellem.
+    X2 = np.zeros((1, 21))
+    X2[0, [0, 1, 2, 3]] = [-1000.0, -1100.0, -1000.0, -1100.0]
+    res = b.simuler_aar(0.0, 1.0, 1.0, None, horisont=21, X_fast=X2,
+                        M_fast=np.minimum(0.0, X2))
+    assert res["resets"][0] == 2
+    assert res["gebyr"][0] == pytest.approx(49 + 2 * 49 + 14.50)
 
     # Bestået dag 2, XFA lukket dag 8, nyt forløb dag 9: 49 + 149 + 49 + API 14,50.
     X = np.array([[1600.0, 1500.0] + [200.0] * 5 + [-600.0, 0.0, 0.0]])
@@ -187,10 +202,18 @@ def test_7_gebyrer():
     assert res["gebyr"][0] == pytest.approx(49 + 149 + 49 + 14.50)
     assert res["netto"][0] == pytest.approx(0.9 * 500 - (49 + 149 + 49 + 14.50))
 
+    # Diagnosen: lukket XFA har ingen ikke-udbetalt saldo.
+    assert res["xfa_ubetalt"][0] == 0.0
+
     # $95-planen uden aktivering.
     res = b.simuler_aar(0.0, 1.0, 1.0, None, r=b.regler_95(), horisont=10, X_fast=X,
                         M_fast=np.minimum(0.0, X))
     assert res["gebyr"][0] == pytest.approx(95 + 95 + 14.50)
+
+    # Diagnosen: bestået dag 2 og +300 i XFA dag 3 giver $300 uden for nettoværdien.
+    X3 = np.array([[1600.0, 1500.0, 300.0]])
+    res = b.simuler_aar(0.0, 1.0, 1.0, None, horisont=3, X_fast=X3, M_fast=np.minimum(0.0, X3))
+    assert res["xfa_ubetalt"][0] == 300.0 and res["udbetalt"][0] == 0.0
 
 
 @pytest.mark.parametrize("wr", [0.40, 0.34])
@@ -208,3 +231,37 @@ def test_8_krydstjek_mll_ruin(wr):
     lo, hi = wilson_interval(ref["bestaaet"], ref["n"])
     o = b.combine_alene(100_000, dage, b.diskret_2til1_dag(wr, R_usd, omk), R, froe=8)
     assert lo <= o["bestaaet"] / o["n"] <= hi
+
+
+def test_9_interpolation():
+    """Tillægget §3.2: kravets lineære interpolation og flag."""
+    S = [-0.5, 0.0, 0.5, 1.0]
+    k = b.foerste_krydsning(S, [-300.0, -100.0, 100.0, 400.0], 0.0)
+    assert k["x"] == pytest.approx(0.25) and k["flag"] is None
+    # Første krydsning tæller, også når kurven falder igen.
+    k = b.foerste_krydsning(S, [-10.0, 30.0, -5.0, 50.0], 0.0)
+    assert k["x"] == pytest.approx(-0.5 + 0.5 * 10.0 / 40.0)
+    # Præcis 0 er ikke > 0; krydsningen ligger i næste interval.
+    k = b.foerste_krydsning(S, [-1.0, 0.0, 2.0, 3.0], 0.0)
+    assert k["x"] == pytest.approx(0.0)
+    assert b.foerste_krydsning(S, [5.0, 6.0, 7.0, 8.0], 0.0) == {"x": -0.5, "flag": "under_gitter"}
+    assert b.foerste_krydsning(S, [-5.0, -4.0, -3.0, -1.0], 0.0) == {"x": None,
+                                                                    "flag": "over_gitter"}
+    # S_hurtig: "≥ 50%" — præcis 0,5 ved et gitterpunkt giver det punkt.
+    k = b.foerste_krydsning(S, [0.1, 0.3, 0.5, 0.7], b.HURTIG_P - 1e-12)
+    assert k["x"] == pytest.approx(0.5, abs=1e-9)
+
+    rows = [{"sharpe": x, "bedst": {"EV": ev, "EV_lo": ev - 100.0, b_key: p},
+             "disciplin": {"EV": ev - 50.0}, "hurtigst": {b_key: p + 0.1}}
+            for x, ev, p in zip(S, [-300.0, -100.0, 100.0, 400.0], [0.1, 0.3, 0.45, 0.6])]
+    krav = b.kravet(rows)
+    assert krav["S_min_EV"]["x"] == pytest.approx(0.25)
+    assert krav["S_min_EV_lo"]["x"] == pytest.approx(0.5)
+    assert krav["S_min_EV_disciplin"]["x"] == pytest.approx(0.375)
+    assert krav["S_hurtig_bedst"]["x"] == pytest.approx(0.5 + 0.5 * 0.05 / 0.15)
+    assert krav["S_hurtig_max"]["x"] == pytest.approx(0.0 + 0.5 * 0.1 / 0.15)
+    assert b.beslutning(0.75) == 1 and b.beslutning(0.76) == 2 and b.beslutning(1.5) == 2
+    assert b.beslutning(1.51) == 3 and b.beslutning(None) == 3
+
+
+b_key = f"P_udbetaling_{b.HURTIG_DAGE}"

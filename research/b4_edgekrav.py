@@ -6,7 +6,7 @@ kun sin årlige Sharpe netto og sin daglige spredning i dollar. ``research/mll_r
 importeres kun i testen (krydstjekket, §7.2.8) og røres ikke.
 
     .venv/bin/python -m research.b4_edgekrav tid       én celle à 20.000 stier og et skøn
-    .venv/bin/python -m research.b4_edgekrav gitter    hele gitteret. Kræver ejerens godkendelse
+    .venv/bin/python -m research.b4_edgekrav gitter    hovedgitteret og de seks følsomheder (godkendt i tillægget)
 
 ## Vejen gennem modulet
 
@@ -38,11 +38,12 @@ der kan flytte resultatet, eller hvor reglen kan læses på to måder, er mærke
    handelsdag; brud-dagen er brugt. En XFA starter dagen efter beståelse, og et nyt
    Combine-forløb dagen efter XFA-lukning. Ingen ventedage imellem. [tvivl] I praksis går
    der nogle dage fra beståelse til XFA; det gør modellen en smule optimistisk.
-4. **[tvivl] Abonnementet** tælles pr. Combine-forløb: $49 betales på forløbets dag 1, 22,
-   43 … (påbegyndte 21-dages blokke af Combine-dage). Et reset nulstiller ikke tælleren.
-   Et nyt forløb efter XFA-lukning starter en ny tæller. Den anden læsning — at et reset
-   også starter en ny abonnementsmåned, eller at månederne er faste kalenderblokke — giver
-   andre gebyrer ved lave Sharpes, hvor der er mange resets.
+4. **Abonnementet** (rettet efter tillægget §2.2): et reset til $49 erstatter næste
+   månedsbetaling. Betalingerne i Combine er $49 på forløbets første dag, $49 ved hvert
+   reset, og ellers $49, når der er gået 21 handelsdage siden seneste betaling. Brud-dagen
+   er resettets betalingsdag, så næste betaling er 21 dage senere. Et nyt forløb efter
+   XFA-lukning betaler på sin første dag. **[tvivl]** "På $95-planen er det samme med
+   $95" er læst som: start, reset og månedsbetaling er alle $95 på den plan.
 5. **API** er $14,50 × påbegyndte 21-dages blokke af horisonten, ens for alle stier:
    12 × 14,50 = $174 ved 252 dage.
 6. **Konsistensmålet** bruger bedste dag i det igangværende forsøg; et reset starter
@@ -54,20 +55,22 @@ der kan flytte resultatet, eller hvor reglen kan læses på to måder, er mærke
    ``min(loft, saldo / 2)`` og tages kun, hvis det er ≥ $125. Er det under (saldo < $250),
    tages intet, og tælleren beholdes, til beløbet er stort nok.
 9. **Efter udbetaling** er MLL $0 (låst), saldoen falder med beløbet, tælleren er 0.
-10. **[tvivl] Nettoværdien** er 90% af udbetalingerne inden for horisonten minus gebyrerne.
+10. **Nettoværdien** (godkendt i tillægget §2.4) er 90% af udbetalingerne inden for horisonten minus gebyrerne.
     En XFA-saldo, der står ved horisonten uden at være udbetalt, tæller **ikke** med (§1.3:
     "90% af udbetalingerne"). Det gør tallet konservativt for stier, der lige er bestået.
+    Diagnosen ``xfa_ubetalt`` er den forventede positive XFA-saldo ved horisonten, der
+    ligger uden for tallet.
 11. **Tider** regnes i handelsdage fra første Combine-dag (dag 1). "Inden for 63 dage" er
     dag ≤ 63. **Median dage til bestået** er medianen blandt de stier, der består inden for
     horisonten (første beståelse); andelen står ved siden af.
 12. **Antal resets** er det forventede antal Combine-brud pr. år (hvert koster $49).
-13. **95%-intervallet** for forventet nettoværdi er ``middel ± 1,96 · sd / √n`` for den
-    valgte celle. Det tager ikke højde for, at cellen er valgt som den bedste af 100; ved
-    lav Sharpe er punktet derfor lidt optimistisk.
-14. **[tvivl] S_hurtig** (§1.4 og §4) siger ikke ved hvilken størrelse. Hovedlæsningen er
-    **ved den størrelse, der er bedst på forventet nettoværdi** (§4: "Ved den bedste
-    størrelse"). Den anden læsning er den størrelse, der maksimerer P(første udbetaling ≤
-    63 dage). ``kravet`` regner begge.
+13. **95%-intervallet** for forventet nettoværdi er ``middel ± 1,96 · sd / √n``. Efter
+    tillægget §3.1 vælges cellen på de oprindelige stier og regnes igen på 20.000 nye
+    stier (``FROE_NY``); det tal er hovedtallet, og S_min_EV regnes på det. Det samme gøres
+    for disciplinzonens celle og for S_hurtig's anden læsning.
+14. **S_hurtig** (tillægget §2.5): hovedlæsningen er ved den størrelse, der er bedst på
+    forventet nettoværdi. Den anden læsning, den størrelse der maksimerer P(første
+    udbetaling ≤ 63 dage), rapporteres ved siden af. ``kravet`` regner begge.
 15. **Interpolation** (§4): S_min_EV er det første nulpunkt for EV(S) mellem to
     gitterpunkter, hvor EV skifter fra ≤ 0 til > 0, lineært. Er EV > 0 allerede i første
     gitterpunkt, rapporteres gitterpunktet og et flag. Samme for intervallets nedre grænse
@@ -99,6 +102,7 @@ HORISONT = 252
 DAGE_MAANED = 21
 N_STIER = 20_000
 FROE = 20261009
+FROE_NY = 20261010
 DF = 4
 
 SHARPE_GITTER = (-0.5, 0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0)
@@ -140,12 +144,12 @@ def regler_uden_dll(r: Regler = Regler()) -> Regler:
 
 
 def regler_95(r: Regler = Regler()) -> Regler:
-    """§5: $95-planen uden aktiveringsgebyr."""
-    return replace(r, abonnement=95.0, aktivering=0.0)
+    """§5: $95-planen uden aktiveringsgebyr. Reset er også $95 (læsning 4)."""
+    return replace(r, abonnement=95.0, reset=95.0, aktivering=0.0)
 
 
 def abonnement_blokke(combine_dage: int) -> int:
-    """Påbegyndte 21-dages blokke for et Combine-forløb på ``combine_dage`` dage."""
+    """Påbegyndte 21-dages blokke på ``combine_dage`` dage (API og forløb uden reset)."""
     return -(-int(combine_dage) // DAGE_MAANED)
 
 
@@ -284,7 +288,7 @@ def simuler_aar(sharpe: float, sigma_c: float, sigma_x: float, stoej: Stoej,
     mll = np.full(n, -r.mll_rum)
     bedste = np.zeros(n)
     dage = np.zeros(n, dtype=np.int32)
-    blok = np.zeros(n, dtype=np.int32)
+    siden = np.full(n, DAGE_MAANED, dtype=np.int32)
     vinder = np.zeros(n, dtype=np.int32)
 
     gebyr = np.zeros(n)
@@ -306,9 +310,9 @@ def simuler_aar(sharpe: float, sigma_c: float, sigma_x: float, stoej: Stoej,
             X = np.where(i_c, mu_c, mu_x) + sigma * stoej.Z[:, t]
             M = bridge_minimum(X, sigma, stoej.U[:, t]) if intradag else np.minimum(0.0, X)
 
-        ny_blok = i_c & (blok % DAGE_MAANED == 0)
-        gebyr += np.where(ny_blok, r.abonnement, 0.0)
-        blok += i_c
+        betal = i_c & (siden >= DAGE_MAANED)
+        gebyr += np.where(betal, r.abonnement, 0.0)
+        siden = np.where(betal, 0, siden) + i_c
 
         pnl, brud, _ = dagens_udfald(saldo, mll, X, M, r)
 
@@ -350,7 +354,8 @@ def simuler_aar(sharpe: float, sigma_c: float, sigma_x: float, stoej: Stoej,
         bedste = np.where(nul, 0.0, bedste)
         dage = np.where(nul, 0, dage)
         vinder = np.where(nul, 0, vinder)
-        blok = np.where(x_brud | ny_x, 0, blok)
+        # Resettet er en betaling på brud-dagen (tillægget §2.2); et nyt forløb betaler dag 1.
+        siden = np.where(c_brud, 1, np.where(x_brud, DAGE_MAANED, siden))
         fase = np.where(ny_x, XFA, np.where(x_brud, COMBINE, fase)).astype(np.int8)
 
     gebyr += api_gebyr(horisont, r)
@@ -370,6 +375,7 @@ def simuler_aar(sharpe: float, sigma_c: float, sigma_x: float, stoej: Stoej,
         "foerste_udbetaling": foerste_udbetaling,
         "slut_fase": fase,
         "slut_saldo": saldo,
+        "xfa_ubetalt": np.where(fase == XFA, np.maximum(saldo, 0.0), 0.0),
     }
 
 
@@ -454,6 +460,7 @@ def opsummer(res: dict) -> dict:
         "til_ejer": float(res["til_ejer"].mean()),
         "gebyr": float(res["gebyr"].mean()),
         "resets": float(res["resets"].mean()),
+        "xfa_ubetalt": float(res["xfa_ubetalt"].mean()),
         "median_dage_bestaaet": float(np.median(fb[np.isfinite(fb)])) if np.isfinite(fb).any()
         else float("nan"),
     }
@@ -465,8 +472,14 @@ def opsummer(res: dict) -> dict:
 
 
 def koer_sharpe(sharpe: float, stoej: Stoej, r: Regler = Regler(), horisont: int = HORISONT,
-                intradag: bool = True, sigmaer=SIGMA_GITTER) -> dict:
-    """Alle (σ_C, σ_X) for én Sharpe. Bedste størrelse er højeste forventede nettoværdi."""
+                intradag: bool = True, sigmaer=SIGMA_GITTER,
+                stoej_ny: Stoej | None = None) -> dict:
+    """Alle (σ_C, σ_X) for én Sharpe. Bedste størrelse er højeste forventede nettoværdi.
+
+    Med ``stoej_ny`` (tillægget §3.1) regnes de tre valgte celler igen på nye stier, og de
+    nye tal står under 'bedst', 'disciplin' og 'hurtigst'. Valgets egne tal står under
+    '<navn>_valg'.
+    """
     celler = []
     for sc in sigmaer:
         for sx in sigmaer:
@@ -477,8 +490,16 @@ def koer_sharpe(sharpe: float, stoej: Stoej, r: Regler = Regler(), horisont: int
     bedst_zone = max(zone, key=lambda c: c["EV"])
     hurtig_key = f"P_udbetaling_{HURTIG_DAGE}"
     hurtigst = max(celler, key=lambda c: c.get(hurtig_key, -1.0))
-    return {"sharpe": sharpe, "bedst": bedst, "disciplin": bedst_zone, "hurtigst": hurtigst,
-            "celler": celler}
+    ud = {"sharpe": sharpe, "bedst": bedst, "disciplin": bedst_zone, "hurtigst": hurtigst,
+          "celler": celler}
+    if stoej_ny is not None:
+        for navn in ("bedst", "disciplin", "hurtigst"):
+            c = ud[navn]
+            o = opsummer(simuler_aar(sharpe, c["sigma_c"], c["sigma_x"], stoej_ny, r, horisont,
+                                     intradag))
+            ud[f"{navn}_valg"] = c
+            ud[navn] = {"sharpe": sharpe, "sigma_c": c["sigma_c"], "sigma_x": c["sigma_x"], **o}
+    return ud
 
 
 def foerste_krydsning(xs, ys, taerskel: float) -> dict:
@@ -508,6 +529,8 @@ def kravet(rows: list[dict]) -> dict:
         "S_min_EV_disciplin": foerste_krydsning(S, [r["disciplin"]["EV"] for r in rows], 0.0),
         "S_hurtig_bedst": foerste_krydsning(S, [r["bedst"][k] for r in rows], HURTIG_P - eps),
         "S_hurtig_max": foerste_krydsning(S, [r["hurtigst"][k] for r in rows], HURTIG_P - eps),
+        "S_min_EV_valgstier": foerste_krydsning(
+            S, [r.get("bedst_valg", r["bedst"])["EV"] for r in rows], 0.0),
         "EV_pos_ved_0": any(r["sharpe"] == 0.0 and r["bedst"]["EV"] > 0 for r in rows),
     }
 
@@ -550,21 +573,72 @@ def tidsmaaling(n: int = N_STIER, sharpe: float = 1.0, sigma_c: float = 300.0,
     }
 
 
-def gitter(n: int = N_STIER) -> dict:  # pragma: no cover - kørslen kræver godkendelse
-    stoej = traek_stoej(n)
-    rows = [koer_sharpe(S, stoej) for S in SHARPE_GITTER]
+# Hovedgitteret og de seks følsomheder i §5: (df, regler, intradag, horisont).
+VARIANTER = {
+    "hoved": (DF, Regler(), True, HORISONT),
+    "normal": (None, Regler(), True, HORISONT),
+    "t3": (3, Regler(), True, HORISONT),
+    "uden_dll": (DF, regler_uden_dll(), True, HORISONT),
+    "uden_intradag": (DF, Regler(), False, HORISONT),
+    "horisont_126": (DF, Regler(), True, 126),
+    "plan_95": (DF, regler_95(), True, HORISONT),
+}
+
+
+def _koer_en(args) -> dict:
+    variant, sharpe, n = args
+    df, r, intradag, horisont = VARIANTER[variant]
+    st = traek_stoej(n, HORISONT, df, FROE)
+    ny = traek_stoej(n, HORISONT, df, FROE_NY)
+    return koer_sharpe(sharpe, st, r, horisont, intradag, stoej_ny=ny)
+
+
+def koer_variant(variant: str, n: int = N_STIER, arbejdere: int = 3) -> dict:
+    """Ét gitter. Hver Sharpe er en opgave; resultatet afhænger ikke af antal arbejdere."""
+    from concurrent.futures import ProcessPoolExecutor
+    opg = [(variant, S, n) for S in SHARPE_GITTER]
+    with ProcessPoolExecutor(arbejdere) as ex:
+        rows = list(ex.map(_koer_en, opg))
     krav = kravet(rows)
-    return {"rows": rows, "kravet": krav, "beslutning": beslutning(krav["S_min_EV"]["x"])}
+    return {"variant": variant, "n": n, "rows": rows, "kravet": krav,
+            "beslutning": beslutning(krav["S_min_EV"]["x"])}
+
+
+def kode_commit() -> str:
+    import subprocess
+    sha = subprocess.run(["git", "--no-optional-locks", "rev-parse", "HEAD"], cwd=ROOT,
+                         capture_output=True, text=True).stdout.strip()
+    rent = subprocess.run(["git", "--no-optional-locks", "status", "--porcelain",
+                           "research/b4_edgekrav.py"], cwd=ROOT, capture_output=True,
+                          text=True).stdout.strip() == ""
+    return sha if rent else sha + "+uncommitted"
+
+
+def gitter(n: int = N_STIER, arbejdere: int = 3) -> None:  # pragma: no cover - kørslen
+    commit = kode_commit()
+    OUT.mkdir(parents=True, exist_ok=True)
+    for v in VARIANTER:
+        sti = OUT / f"b4_edgekrav_{v}.json"
+        if sti.exists() and json.loads(sti.read_text()).get("commit") == commit:
+            print(v, "findes allerede fra", commit, flush=True)
+            continue
+        t0 = time.perf_counter()
+        res = koer_variant(v, n, arbejdere)
+        res["commit"] = commit
+        res["sekunder"] = time.perf_counter() - t0
+        sti.write_text(json.dumps(res, ensure_ascii=False))
+        print(v, f"{res['sekunder'] / 60:.1f} min", flush=True)
 
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("kommando", choices=("tid", "gitter"))
+    p.add_argument("--arbejdere", type=int, default=3)
     a = p.parse_args(argv)
     if a.kommando == "tid":
         print(json.dumps(tidsmaaling(), indent=2, ensure_ascii=False))
     else:
-        raise SystemExit("Hele gitteret kører først, når ejeren har godkendt (§7.5).")
+        gitter(arbejdere=a.arbejdere)
 
 
 if __name__ == "__main__":
