@@ -305,3 +305,12 @@ Screeningen ligger i `research/output/b4_screening.md`. Hver mekanisme er holdt 
 - Intet stop i testen.
 
 4 varianter; tælleren går fra 41 til 45. Præregistreret i `research/prereg/b4_k6_overnight.md`. Kravet om kun at handle i RTH er løftet for denne kandidat. Topsteps regler gælder.
+
+### Kandidat 6 — PARKERET 2026-10-09, række 2
+
+Kørslen (`research/output/b4_k6_overnight_laest.md`) gav række 2 i §8 på NQ 2016–2023:
+- 07:30–09:30 dansk tid efter salgsdage slog en tilfældig nattetime (p_FWE 0,044). Netto var $11,07 pr. nat pr. MNQ, men CI95 [−0,95; 23,09] rører 0.
+- Alle fire varianter er positive brutto, men ingen beviser netto over 0.
+- Diagnoser (afgør intet): stærkest efter de største salg. Blandet før og efter publiceringen. MNQ 2019–2023 ville have givet række 1, men det er ikke uafhængigt.
+
+Tælleren står på 45. Holdout for natten er uåbnet for NQ.
