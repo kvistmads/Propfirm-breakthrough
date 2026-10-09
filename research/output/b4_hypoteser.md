@@ -274,3 +274,34 @@ Holdout-kørslen (`research/output/b4_k5_holdout_laest.md`) gav række 4 i §5:
 - Faldet fra in-sample er ikke tilfældigt (z cirka 3,0). Det passer med, at offentliggjorte mønstre svækkes.
 
 Holdout er åbnet én gang og er ikke længere ren for hypoteser om VWAP og momentum inden for dagen. Tælleren står på 41.
+
+## Screening efter kandidat 1–5 (2026-10-08)
+
+Ejerens svar:
+- **1A:** screening af mekanismer frem for nye prismønstre.
+- **2A:** handel uden for RTH er tilladt inden for Topsteps regler.
+
+Screeningen ligger i `research/output/b4_screening.md`. Hver mekanisme er holdt op mod fem filtre: hvem betaler, Topstep og MNQ, styrke, omkostning og rene data.
+
+| mekanisme | afgørelse |
+|---|---|
+| Overnight drift ved Europas åbning (Boyarchenko, Larsen og Whelan 2023) | anbefales som kandidat 6 |
+| Stop-kaskader ved runde tal (Osler) | lav prioritet |
+| Natrange som kontekst for åbningen | lav prioritet |
+| Turn of the month | udelukket: ingen mekanisme |
+| Pre-FOMC drift | udelukket: forsvandt efter 2015 og har for få handler |
+| Momentum sidst på dagen | udelukket: væk i 0DTE-tiden, og holdout er brugt |
+
+## Kandidat 6 — overnight drift ved Europas åbning
+
+**Kilde:** Boyarchenko, Larsen og Whelan (2023, RFS). S&P-futures stiger kl. 2–3 New York-tid (08–09 dansk tid), mest efter salgsdage. Mekanismen er betaling til markedsmagere for at bære lagerrisiko.
+
+**Besluttet af ejeren 2026-10-09** (svar 1A–6A):
+- Vinduer: 02:00–03:00 og 01:30–03:30 New York-tid.
+- Nætter: alle, og kun efter en salgsdag (RTH-afkast < 0).
+- Data: NQ 2016–2023 som hovedserie, MNQ 2019–2023 som kontrol.
+- Nulmodel: en tilfældig anden time samme nat.
+- Mål: netto-$ pr. nat pr. MNQ ved dagens niveau. Fryses ved p_FWE ≤ 0,05 og CI-nedre > 0.
+- Intet stop i testen.
+
+4 varianter; tælleren går fra 41 til 45. Præregistreret i `research/prereg/b4_k6_overnight.md`. Kravet om kun at handle i RTH er løftet for denne kandidat. Topsteps regler gælder.
