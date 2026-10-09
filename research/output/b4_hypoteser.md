@@ -314,3 +314,9 @@ Kørslen (`research/output/b4_k6_overnight_laest.md`) gav række 2 i §8 på NQ 
 - Diagnoser (afgør intet): stærkest efter de største salg. Blandet før og efter publiceringen. MNQ 2019–2023 ville have givet række 1, men det er ikke uafhængigt.
 
 Tælleren står på 45. Holdout for natten er uåbnet for NQ.
+
+## Edge-kravet (2026-10-09)
+
+Ejerens svar A: regn baglæns, før vi leder videre. Hvor stor skal en edge være (Sharpe netto), før Topstep giver plus i forventning over ét år med Combine, XFA-udbetalinger og gebyrer?
+- Præregistreret i `research/prereg/b4_edgekrav.md` med beslutningsregel: S_min ≤ 0,75 → svage edges (overnight drift); 0,75–1,5 → kombination nødvendig; > 1,5 → andet format.
+- Ingen kursdata. Tæller ikke som forsøg.
