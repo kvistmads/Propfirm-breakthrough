@@ -320,3 +320,15 @@ Tælleren står på 45. Holdout for natten er uåbnet for NQ.
 Ejerens svar A: regn baglæns, før vi leder videre. Hvor stor skal en edge være (Sharpe netto), før Topstep giver plus i forventning over ét år med Combine, XFA-udbetalinger og gebyrer?
 - Præregistreret i `research/prereg/b4_edgekrav.md` med beslutningsregel: S_min ≤ 0,75 → svage edges (overnight drift); 0,75–1,5 → kombination nødvendig; > 1,5 → andet format.
 - Ingen kursdata. Tæller ikke som forsøg.
+
+### Edge-kravet — læst 2026-10-09: række 1
+
+Rapporten ligger i `research/output/b4_edgekrav_laest.md`.
+
+- **§6 giver række 1** ved både den bedste størrelse (S_min ≤ −0,5) og disciplinzonen (S_min 0,16). Svage edges kan altså betale sig.
+- **Reglerne giver plus i forventning uden edge**, når man sætter en stor størrelse på. Det skyldes optionsgeometrien: tabet er loftet af gebyrerne, mens udbetalingerne ikke har noget loft. Det bruges ikke som strategi:
+  - P(netto > 0) er kun 48%.
+  - Det kræver 15–19 resets om året og hyppige DLL-brud, som Topstep kan straffe.
+  - Tallene er skrøbelige over for modellens antagelser.
+- **Disciplinzonen (σ ≤ $400) anbefales som styrende kurve.** Her giver en Sharpe på 0,64 cirka $560 om året, 1,0 giver $1.108 og 2,0 giver $3.411 (P(netto > 0) 80%).
+- **Næste skridt efter §6:** præregistreret holdout-test af overnight drift (lav styrke) og en søgning efter svage edges, der kan supplere.
