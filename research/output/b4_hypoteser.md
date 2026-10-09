@@ -332,3 +332,20 @@ Rapporten ligger i `research/output/b4_edgekrav_laest.md`.
   - Tallene er skrøbelige over for modellens antagelser.
 - **Disciplinzonen (σ ≤ $400) anbefales som styrende kurve.** Her giver en Sharpe på 0,64 cirka $560 om året, 1,0 giver $1.108 og 2,0 giver $3.411 (P(netto > 0) 80%).
 - **Næste skridt efter §6:** præregistreret holdout-test af overnight drift (lav styrke) og en søgning efter svage edges, der kan supplere.
+
+## Screening 2: edges der kan supplere (2026-10-09)
+
+Ejerens svar:
+- **1A:** disciplinzonen styrer.
+- **2A:** søg edges, der kan supplere overnight drift.
+
+Målet er en samlet Sharpe på mindst 1, gerne 2. Screeningen ligger i `research/output/b4_screening_2.md`.
+
+| mekanisme | afgørelse |
+|---|---|
+| Rebalancering (Harvey, Mazzoleni og Melone 2025) | anbefales som kandidat 7 |
+| Auktionscyklus i statsobligationer | lav, kræver mere research |
+| Valuta i egen handelstid | lav, omkostningen er for høj |
+| Guld om natten | lav, ingen klar betaler |
+| Overnight drift på ES | lav, for korreleret med kandidat 6 |
+| Intradag-momentum i andre markeder | lav–middel, kræver mere research |
