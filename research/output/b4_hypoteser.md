@@ -445,3 +445,17 @@ Ejerens svar 1A–4A på udkastet. Præregistreringen ligger i `research/prereg/
 | H2 | netto > 0 ved $3,10, 90%-nedre grænse > 0. Styrke ca. 26% |
 | Beskyttelse | kun V2 · salg og nulmodellen rapporteres, så NQ-nætterne kan bruges til senere natidéer |
 | Køb | kun NQ 2026-09-11 → 2026-10-01, loft $2 |
+
+### Kandidat 6: holdout kørt og læst (2026-10-10)
+
+**Række 4: kandidat 6 parkeres for godt.** Læsningen ligger i `research/output/b4_k6_holdout_laest.md`.
+
+| serie | netto $/nat pr. MNQ [CI90] | p_H1 |
+|---|---|---|
+| holdout 2024–2026 | 6,57 [−9,56; 22,70] | 0,325 |
+| in-sample 2016–2023 | 10,82 [0,73; 20,90] | 0,020 |
+
+- Punktestimatet hviler på april 2025: uden den måned er netto $0,99, og uden de 5 bedste nætter −$5,73.
+- En tilfældig anden nattetime gav +$2,08 på holdout, så vinduet er ikke længere særligt.
+- Alle syv kandidater er nu parkeret, og alle tre holdouts gav række 4.
+- Næste: screening 3, som aftalt.

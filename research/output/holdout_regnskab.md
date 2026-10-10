@@ -17,7 +17,7 @@ beskrivende målinger uden signaler eller udfald.
 | data | lokalt | åbnet | hvad er set | ikke længere rent for | stadig brugbart til |
 |---|---|---|---|---|---|
 | **MNQ.v.0** 1m | 2024-01-01 → 2026-10-01 | 1 gang, 2026-10-08, `b4_k5_holdout.md` | Kun RTH: VWAP-retningen (1m · uden middag), brutto pr. halve time i RTH, altid-long i RTH, long mod short | VWAP-trend og intradag-momentum i RTH. Retning og drift i RTH pr. halve time på MNQ og NQ (samme kurs) | Natten. Andre RTH-idéer med en note om, hvad der er set |
-| **NQ.v.0** 1m | 2024-01-01 → 2026-09-11 | **aldrig** | Intet. Men NQ og MNQ har samme kurs, så RTH-tallene fra kandidat 5 gælder også NQ | Som MNQ for RTH | **Natten er helt ren.** Reserveret til kandidat 6's holdout-test |
+| **NQ.v.0** 1m | 2024-01-01 → 2026-10-01 | 1 gang, 2026-10-10, `b4_k6_holdout.md` | Kun natten: long 00:30–02:30 CT efter salgsdage (V2 · salg), tilfældige 2-timersvinduer på salgsnætter (nulmodellen), pr. år og koncentration (april 2025). RTH-tallene fra kandidat 5 gælder også NQ (samme kurs) | Natdrift efter salgsdage og natdrift i 2-timersvinduer på salgsnætter. Som MNQ for RTH | Natidéer på bestemte nætter (fx før optionsudløb eller FOMC), med en note. Long hele natten og nætter uden salg er ikke rapporteret |
 | **ES.v.0** 1m | 2024-01-01 → 2026-10-01 | 1 gang, 2026-10-10, `b4_k7_holdout.md` | T's resultat over Topstep-dagen, long hele Topstep-dagen, brutto nat og RTH for T, urolige måneder, ES' dagsafkast mod næste dag (reversal) | Rebalancering, kortsigtet reversal, drift over hele dagen og natdrift på ES generelt | Idéer på bestemte dage eller begivenheder (fx optionsudløb, FOMC), med en note |
 | **ZN.v.0** 1m | 2024-01-01 → 2026-10-01 | 1 gang, sammen med ES | Kun brugt til T's signal og som kontrol i reversal-regressionen | Aktie-mod-obligations-signaler | ZN's egne mønstre, med en note |
 
@@ -43,3 +43,4 @@ linjer, én pr. symbol.
 |---|---|---|---|
 | 2026-10-08 | `b4_k5_holdout.md` (VWAP-trend) | MNQ.v.0 | række 4, parkeret |
 | 2026-10-10 | `b4_k7_holdout.md` (rebalancering, T) | ES.v.0, ZN.v.0 | række 4, parkeret |
+| 2026-10-10 | `b4_k6_holdout.md` (overnight drift efter salgsdage) | NQ.v.0 | række 4, parkeret for godt |
