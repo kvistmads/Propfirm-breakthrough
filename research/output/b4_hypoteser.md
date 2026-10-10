@@ -420,3 +420,15 @@ Ejerens svar 1A–3A. Præregistreringen ligger i `research/prereg/b4_k7_holdout
 - Signalet mistede sin forudsigelse: hældningen med kontrol er −$10,59 [−58,78; 37,59] mod −$49,65 in-sample.
 - ES og ZN 2024–2026 er ikke længere rene for rebalancering, reversal og drift over hele dagen. NQ 2024–2026 er uåbnet.
 - Til senere: beslutningsreglen kan udløses af én episode. Om række 1 også skal kræve, at resultatet holder uden den bedste måned, aftales med ejeren.
+
+## Efter kandidat 7 (2026-10-10)
+
+Ejerens beslutninger:
+- **Ingen ny regel om koncentration.** Overblikssessionen viser fortsat i hver læsning, hvor meget den bedste måned og de bedste dage fylder.
+- **2A: holdout-regnskab.** `research/output/holdout_regnskab.md` viser pr. instrument og periode, hvad der er set. Hver ny præregistrering henviser til det.
+- **1A: holdout-test af kandidat 6.** Udkastet med spørgsmål ligger i `research/prereg/b4_k6_holdout_udkast.md`.
+
+Litteraturscanning (`research/output/b4_litteraturscan_2026_10.md`, ikke verificeret):
+- Forfatterne til overnight drift skriver i 2026, at driften kl. 2–3 New York-tid har været cirka 0 siden 2021. Hos os forsvandt den ubetingede drift også, men driften efter salgsdage holdt i 2021–2023 in-sample.
+- Kortsigtet trend i MES/MNQ døde efter 2009, og driften før FOMC inden for dagen efter 2016.
+- De bedste nye kandidater er sjældne begivenheder med en tvungen betaler: optionsudløb (Derivative Payoff Bias), udbyttedage (Hartzmark og Solomon) og natten før FOMC. De ligger på forskellige dage og kan måske lægges sammen.
