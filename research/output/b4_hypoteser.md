@@ -459,3 +459,18 @@ Ejerens svar 1A–4A på udkastet. Præregistreringen ligger i `research/prereg/
 - En tilfældig anden nattetime gav +$2,08 på holdout, så vinduet er ikke længere særligt.
 - Alle syv kandidater er nu parkeret, og alle tre holdouts gav række 4.
 - Næste: screening 3, som aftalt.
+
+## Screening 3: planlagte begivenheder (2026-10-10)
+
+Screeningen ligger i `research/output/b4_screening_3.md`.
+
+| begivenhed | brutto bp pr. gang | pr. år | afgørelse |
+|---|---|---|---|
+| Natten før månedligt optionsudløb (Baltussen, Terstegge og Whelan) | +14, kvartalsudløb +27 | 12 | med |
+| Vending fredag efter udløb | −6, kvartalsudløb −37 | 12 | med, som variant |
+| Natten før FOMC (Song 2026, Hu m.fl. 2022) | +19 i natgabet 2016–2023 | 8 | med, usikker |
+| Natten før beskæftigelsestal (Hu m.fl. 2022) | +10 | 12 | med |
+| Store udbyttedage (Hartzmark og Solomon 2025) | +7 | cirka 63 | lav, mangler data |
+| Valutafixing (M6E) | cirka 2,5 pr. ben | cirka 250 | lav, omkostningen |
+
+Anbefaling: kandidat 8, en begivenhedsbog. Long MES natten før de tre begivenheder, cirka 32 nætter om året, nulmodel = andre nætter. Afventer ejerens svar.
