@@ -150,7 +150,7 @@ from research import b4_k2_nowick as k2  # noqa: E402
 from research import b4_k4_emt as k4  # noqa: E402
 from research import b4_k6_overnight as k6  # noqa: E402
 from research.normal import norm  # noqa: E402
-from research.stats import mean_ci_t  # noqa: E402
+from research.stats import mean_ci_t, t_critical  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "research" / "output"
@@ -808,6 +808,66 @@ def _korr(a, b) -> float:
     return float(np.corrcoef(a, b)[0, 1])
 
 
+def ols_hc3(y: np.ndarray, X: np.ndarray) -> dict:
+    """OLS med HC3-robuste standardfejl. ``X`` uden konstant; konstanten lægges til."""
+    y = np.asarray(y, float)
+    X = np.column_stack([np.ones(len(y)), np.asarray(X, float).reshape(len(y), -1)])
+    n, k = X.shape
+    bread = np.linalg.inv(X.T @ X)
+    beta = bread @ X.T @ y
+    e = y - X @ beta
+    lev = np.einsum("ij,jk,ik->i", X, bread, X)
+    meat = (X * (e / (1.0 - lev))[:, None] ** 2).T @ X
+    se = np.sqrt(np.diag(bread @ meat @ bread))
+    tc = t_critical(n - k, 0.05)
+    return {"n": n, "beta": beta, "se": se, "lo": beta - tc * se, "hi": beta + tc * se}
+
+
+def reversal_diagnose(h: Handel, sig: Signal) -> dict:
+    """Tillæggets §4 (§9a): T og K mod kortsigtet reversal. ``y_d`` er brutto pr. enhed ved
+    w = +1; z er værdien divideret med dens sd (ddof = 1) over de samme dage. Afgør intet."""
+    y = h.G[h.med]
+    tp = h.t_pos[h.med]
+    z = lambda x: x / np.std(x, ddof=1)
+    ud = {}
+
+    def _tabel(navn, yy, x, r_es, r_zn):
+        for kontrol, X in (("uden", z(x)[:, None]),
+                           ("med", np.column_stack([z(x), z(r_es), z(r_zn)]))):
+            r = ols_hc3(yy, X)
+            ud[f"{navn}_{kontrol}"] = {
+                "n": r["n"],
+                **{f"b_{k}": float(r["beta"][i]) for i, k in
+                   enumerate(("a", navn, "E", "Z")[:len(r["beta"])])},
+                **{f"b_{k}_lo": float(r["lo"][i]) for i, k in
+                   enumerate(("a", navn, "E", "Z")[:len(r["beta"])])},
+                **{f"b_{k}_hi": float(r["hi"][i]) for i, k in
+                   enumerate(("a", navn, "E", "Z")[:len(r["beta"])])}}
+
+    _tabel("T", y, sig.T[tp], sig.R_es[tp], sig.R_zn[tp])
+    k = sig.efter[tp] <= K_SIDSTE - 1
+    _tabel("c", y[k], sig.c[tp][k], sig.R_es[tp][k], sig.R_zn[tp][k])
+    wK = position_K(sig.c, sig.efter, sig.foer)[tp]
+    m = wK != 0
+    ud["korr_wK_R_es"] = _korr(wK[m], sig.R_es[tp][m])
+    return ud
+
+
+def reversal_md(rd: dict) -> list[str]:
+    ud = ["| regression | n | b_signal $/sd [95%] | b_E (ES' afkast på t) $/sd [95%] | "
+          "b_Z (ZN's afkast på t) $/sd [95%] |", "|---|---|---|---|---|"]
+    for navn in ("T", "c"):
+        for kontrol in ("uden", "med"):
+            r = rd[f"{navn}_{kontrol}"]
+            f = lambda k: (f"{_usd(r[f'b_{k}'])} {_ci_txt(r[f'b_{k}_lo'], r[f'b_{k}_hi'])}"
+                           if f"b_{k}" in r else "—")
+            ud.append(f"| {navn} {kontrol} kontrol | {r['n']} | {f(navn)} | {f('E')} | "
+                      f"{f('Z')} |")
+    ud += ["", f"Korrelation mellem w^K og ES' afkast på t (aktive K-dage): "
+           f"{_t(rd['korr_wK_R_es'], 3)}."]
+    return ud
+
+
 def analyse(h: Handel, sig: Signal, n_reps: int = NRET_REPS,
             k6_netto: pd.Series | None = None) -> dict:
     """Ét instrument: tallene, N-retning, Westfall-Young, §8 og diagnoserne."""
@@ -828,6 +888,7 @@ def analyse(h: Handel, sig: Signal, n_reps: int = NRET_REPS,
                       for v in VARIANTER})
     diag = diagnoser(h, sig, ws, tal, {v: tal[v]["p_FWE"] for v in VARIANTER}, k6_netto)
     return {"symbol": h.symbol, "tal": tal, "wy": wy, "beslutning": afg, "diag": diag,
+            "reversal": reversal_diagnose(h, sig),
             "optaelling": optaelling(h, sig), "R": n_reps}
 
 
@@ -1111,6 +1172,9 @@ def skriv_md(res: dict, meta: dict) -> str:
                  "### §8 anvendt mekanisk" + ("" if sym == ES else " (kun til orientering)"),
                  "", _beslutning_md(r["beslutning"]), "", "### Diagnoser", ""]
         dele += _diag_md(r)
+        dele += ["", "### §9a (tillæggets §4): T og K mod kortsigtet reversal, OLS med HC3",
+                 "", "y_d = brutto pr. enhed ved w = +1 ($/dag). Afgør intet.", ""]
+        dele += reversal_md(r["reversal"])
         dele.append("")
     return "\n".join(dele)
 

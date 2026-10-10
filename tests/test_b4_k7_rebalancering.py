@@ -401,3 +401,27 @@ def test_hele_koerslen_paa_syntetiske_serier():
     assert "Hovedtabel" in md and "§8 anvendt mekanisk" in md
     df = k7.lang_tabel(res)
     assert {"hoved", "diagnose", "aar", "lang"} <= set(df["tabel"])
+
+
+def test_reversal_diagnose_ols_hc3_kendt_haeldning():
+    """Tillæggets §4: OLS med HC3 genfinder en kendt hældning på syntetiske data."""
+    rng = np.random.default_rng(21)
+    n = 4000
+    x1, x2 = rng.normal(0, 2, n), rng.normal(0, 1, n)
+    y = 3.0 - 16.5 * x1 / x1.std(ddof=1) + 4.0 * x2 + rng.normal(0, 1, n) * (1 + np.abs(x1))
+    r = k7.ols_hc3(y, np.column_stack([x1 / x1.std(ddof=1), x2]))
+    assert r["n"] == n
+    assert r["beta"] == pytest.approx([3.0, -16.5, 4.0], abs=0.25)
+    assert (r["lo"] < [3.0, -16.5, 4.0]).all() and (r["hi"] > [3.0, -16.5, 4.0]).all()
+    # HC3 mod den eksplicitte formel
+    X = np.column_stack([np.ones(n), x1 / x1.std(ddof=1), x2])
+    B = np.linalg.inv(X.T @ X)
+    e = y - X @ (B @ X.T @ y)
+    hii = np.array([X[i] @ B @ X[i] for i in range(n)])
+    V = B @ (X.T * (e / (1 - hii)) ** 2) @ X @ B
+    assert r["se"] == pytest.approx(np.sqrt(np.diag(V)))
+    # diagnosen kører på syntetiske serier og giver alle fire regressioner
+    h, sig = _syntetisk()
+    rd = k7.reversal_diagnose(h, sig)
+    assert {"T_uden", "T_med", "c_uden", "c_med", "korr_wK_R_es"} <= set(rd)
+    assert rd["T_uden"]["n"] == int(h.med.sum()) and "b_E" in rd["T_med"]
