@@ -349,3 +349,18 @@ Målet er en samlet Sharpe på mindst 1, gerne 2. Screeningen ligger i `research
 | Guld om natten | lav, ingen klar betaler |
 | Overnight drift på ES | lav, for korreleret med kandidat 6 |
 | Intradag-momentum i andre markeder | lav–middel, kræver mere research |
+
+## Kandidat 7: rebalancering (præregistreret 2026-10-10)
+
+Ejerens svar 1A–5A på screening 2 §4. Præregistreringen ligger i `research/prereg/b4_k7_rebalancering.md`.
+
+| emne | valg |
+|---|---|
+| Kilde | Harvey, Mazzoleni og Melone, NBER w33554 (arbejdspapir januar 2026) |
+| Signal | 60/40-drift af S&P (ES) mod 10-årige obligationer (ZN). Data købes for 2016–2023, loft $30 |
+| Handel | MES i Topstep-dagen efter signalet, 17:00 → 15:08 CT. Nasdaq (MNQ) som kontrol |
+| Varianter | T · tærskel (størrelse efter signalet) og K · kalender (fortegn i månedens sidste dage) |
+| Nulmodel | N-retning: samme dage og størrelse, tilfældigt fortegn. R = 500, Westfall-Young |
+| Omkostning | $4,45 pr. round trip pr. MES, diagnose ved $5,70 |
+| Tælleren | 45 → 47 |
+| Vigtigst at vide | in-sample overlapper artiklens prøve, så et fund er en genskabelse. Uafhængigt bevis kræver holdout 2024–2026 |
