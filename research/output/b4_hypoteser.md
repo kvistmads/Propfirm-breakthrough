@@ -391,3 +391,17 @@ Data købt for $19,81 (forbrug $56,65 af $120). Optællingen er godkendt i `rese
 - Signalet holder med dagsafkastet som kontrol, så det er ikke kun reversal.
 - Korrelation med kandidat 6: 0,147. Sharpe 0,89 alene og 1,03 sammen med kandidat 6 (skrøbeligt).
 - Næste skridt efter §8: holdout-test af T på ES 2024–2026 og ruinmodellen for T og T + kandidat 6.
+
+### Kandidat 7: holdout-testen præregistreret (2026-10-10)
+
+Ejerens svar 1A–3A. Præregistreringen ligger i `research/prereg/b4_k7_holdout.md`.
+
+| emne | valg |
+|---|---|
+| Hvad | T · tærskel uændret som frosset, ES 2024-01-02 → 2026-09-30 |
+| H1 | retningen mod N-retning, énsidet p ≤ 0,05. Styrke ca. 49% ved in-sample-effekten |
+| H2 | netto > 0, 90%-nedre grænse > 0. Styrke ca. 43% ved in-sample-effekten, ca. 9% ved $3 |
+| Afgør | hele perioden. Uden urolige måneder og de bedste dages andel er diagnoser |
+| Data | ES og ZN 2024–2026 købes efter commit, loft $15 |
+| NQ | holdes uden for, fordi det er kandidat 6's uåbnede holdout |
+| Bagefter | ruinmodellen på de faktiske dage, for T og T + kandidat 6 |
