@@ -377,3 +377,17 @@ Data købt for $19,81 (forbrug $56,65 af $120). Optællingen er godkendt i `rese
 - Appendiks B: ingen afvigelse fra præregistreringen.
 - T korrelerer −0,644 med ES' afkast dagen før, så T ligner kortsigtet reversal. Ny diagnose: regression med dagsafkastet som kontrol. Afgør intet.
 - T er short 81% af dagene og tager de største positioner på de mest urolige dage.
+
+### Kandidat 7: kørt og læst (2026-10-10)
+
+**Række 1: T · tærskel fryses.** K går ikke videre. Læsningen ligger i `research/output/b4_k7_rebalancering_laest.md`.
+
+| variant | netto $/dag pr. MES [CI95] | p_FWE |
+|---|---|---|
+| T · tærskel | 16,42 [3,43; 29,42] | 0,006 |
+| K · kalender | 9,40 [−27,02; 45,82] | 0,331 |
+
+- **T er en kriseedge.** 81% af nettogevinsten kom i marts 2020. Uden den måned er netto $3,09 [−2,34; 8,52]. 2020 og 2022 giver næsten alt, de seks andre år cirka $0.
+- Signalet holder med dagsafkastet som kontrol, så det er ikke kun reversal.
+- Korrelation med kandidat 6: 0,147. Sharpe 0,89 alene og 1,03 sammen med kandidat 6 (skrøbeligt).
+- Næste skridt efter §8: holdout-test af T på ES 2024–2026 og ruinmodellen for T og T + kandidat 6.
