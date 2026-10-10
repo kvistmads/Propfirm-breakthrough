@@ -432,3 +432,16 @@ Litteraturscanning (`research/output/b4_litteraturscan_2026_10.md`, ikke verific
 - Forfatterne til overnight drift skriver i 2026, at driften kl. 2–3 New York-tid har været cirka 0 siden 2021. Hos os forsvandt den ubetingede drift også, men driften efter salgsdage holdt i 2021–2023 in-sample.
 - Kortsigtet trend i MES/MNQ døde efter 2009, og driften før FOMC inden for dagen efter 2016.
 - De bedste nye kandidater er sjældne begivenheder med en tvungen betaler: optionsudløb (Derivative Payoff Bias), udbyttedage (Hartzmark og Solomon) og natten før FOMC. De ligger på forskellige dage og kan måske lægges sammen.
+
+### Kandidat 6: holdout-testen præregistreret (2026-10-10)
+
+Ejerens svar 1A–4A på udkastet. Præregistreringen ligger i `research/prereg/b4_k6_holdout.md`.
+
+| emne | valg |
+|---|---|
+| Hvad | V2 · salg: long MNQ 00:30–02:30 CT efter en salgsdag, uændret |
+| Data | NQ-nætterne 2024-01-02 → 2026-09-30. Intet fra før 2016 |
+| H1 | timen er særlig mod N-nat, p ≤ 0,05. Styrke ca. 32–38% ved in-sample-effekten |
+| H2 | netto > 0 ved $3,10, 90%-nedre grænse > 0. Styrke ca. 26% |
+| Beskyttelse | kun V2 · salg og nulmodellen rapporteres, så NQ-nætterne kan bruges til senere natidéer |
+| Køb | kun NQ 2026-09-11 → 2026-10-01, loft $2 |
