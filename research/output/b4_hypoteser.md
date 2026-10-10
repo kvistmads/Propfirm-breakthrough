@@ -405,3 +405,18 @@ Ejerens svar 1A–3A. Præregistreringen ligger i `research/prereg/b4_k7_holdout
 | Data | ES og ZN 2024–2026 købes efter commit, loft $15 |
 | NQ | holdes uden for, fordi det er kandidat 6's uåbnede holdout |
 | Bagefter | ruinmodellen på de faktiske dage, for T og T + kandidat 6 |
+
+### Kandidat 7: holdout kørt og læst (2026-10-10)
+
+**Række 4: T parkeres.** Læsningen ligger i `research/output/b4_k7_holdout_laest.md`.
+
+| serie | netto $/dag pr. MES [CI90] | p_H1 |
+|---|---|---|
+| holdout 2024–2026 | −0,08 [−9,93; 9,76] | 0,429 |
+| in-sample 2016–2023 | 16,42 [5,52; 27,33] | 0,002 |
+
+- Uden urolige måneder tjener T intet, hverken in-sample ($0,38) eller på holdout (−$2,78).
+- Holdout havde én urolig måned (+$85,65 pr. dag, interval fra −$251 til +$422). Skævheden vendte fra +14,9 til −1,50.
+- Signalet mistede sin forudsigelse: hældningen med kontrol er −$10,59 [−58,78; 37,59] mod −$49,65 in-sample.
+- ES og ZN 2024–2026 er ikke længere rene for rebalancering, reversal og drift over hele dagen. NQ 2024–2026 er uåbnet.
+- Til senere: beslutningsreglen kan udløses af én episode. Om række 1 også skal kræve, at resultatet holder uden den bedste måned, aftales med ejeren.
