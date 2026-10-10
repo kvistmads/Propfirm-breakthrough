@@ -364,3 +364,16 @@ Ejerens svar 1A–5A på screening 2 §4. Præregistreringen ligger i `research/
 | Omkostning | $4,45 pr. round trip pr. MES, diagnose ved $5,70 |
 | Tælleren | 45 → 47 |
 | Vigtigst at vide | in-sample overlapper artiklens prøve, så et fund er en genskabelse. Uafhængigt bevis kræver holdout 2024–2026 |
+
+### Kandidat 7: trin 1 og tillæg (2026-10-10)
+
+Data købt for $19,81 (forbrug $56,65 af $120). Optællingen er godkendt i `research/prereg/b4_k7_rebalancering_tillaeg.md`.
+
+| variant | aktive dage | σ_v $/dag | MDE_sidak2 $/dag | E_v $/dag | styrke ved E_v / E_v/2 |
+|---|---|---|---|---|---|
+| T · tærskel | 1.949 | 315 | 20,0 | 26,5 | 96% / 46% |
+| K · kalender | 556 | 431 | 51,1 | 51,0 | 80% / 29% |
+
+- Appendiks B: ingen afvigelse fra præregistreringen.
+- T korrelerer −0,644 med ES' afkast dagen før, så T ligner kortsigtet reversal. Ny diagnose: regression med dagsafkastet som kontrol. Afgør intet.
+- T er short 81% af dagene og tager de største positioner på de mest urolige dage.
